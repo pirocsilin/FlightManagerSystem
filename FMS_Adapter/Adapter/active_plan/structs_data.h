@@ -6,7 +6,213 @@
 #include <map>
 #include <unordered_map>
 #include <functional>
+#include <QDebug>
 
+struct ActivePlanGuide
+{
+    struct PointParams
+    {
+        QString name;            //!< Название точки
+        float   latitude;        //!< Широта точки  в WGS84, рад
+        float   longitude;       //!< Долгота точки в WGS84, рад
+        float   altitude;        //!< Высота точки  в WGS84, м
+    };
+
+    QString  name;                //!< Название маршрута
+    uint32_t indexCurrentPoint;   //!< индекс текущей точки в маршруте, с 0
+    float    switchPointDistance; //!< Дальность для переключения на след. ППМ, метры
+    float    Vnom;                //!< Номинальная скорость для расчета времени прибытия (если тек. скорость меньше этой, берем эту) m/s
+    quint32  Vbufsize;            //!< Размер буфера для осредения скорости для оценки времени прибытия
+    QVector<PointParams> points;  //!< Точки маршрута
+    QQueue<float>        Vbuf;    //!< Буфер для осреднения скорости
+
+    float azimuthToNextPPM        {0.0f};     //!< азимут от ВС на след ППМ, рад
+    float distanceToNextPPM       {0.0f};     //!< дальность от ВС на след ППМ, м
+    float distanceToNextNextPPM   {0.0f};     //!< дальность от ВС на след после активной ППМ, м
+    float remainTimeToCurPoint    {0.0f};     //!< оставшееся время до прибытия в текущую точку, сек
+    float remainTimeToNextPoint   {0.0f};     //!< оставшееся время до прибытия в следующую точку, сек
+    float trackDeviationZ         {0.0f};     //!< боковое отклонение от линии заданного пути, м
+    //
+    float curSpeed                {0.0f};     //!< текущая скорость ВС, м/с
+    float meanSpeed               {0.0f};     //!< средняя скорость ВС, м/с
+
+    ActivePlanGuide() { reset(); }
+
+    void clearData()
+    {
+        float azimuthToNextPPM        = 0.0f;
+        float distanceToNextPPM       = 0.0f;
+        float distanceToNextNextPPM   = 0.0f;
+        float remainTimeToCurPoint    = 0.0f;
+        float remainTimeToNextPoint   = 0.0f;
+        float trackDeviationZ         = 0.0f;
+        //
+        float curSpeed                = 0.0f;
+        float meanSpeed               = 0.0f;
+    }
+
+    void reset()
+    {
+        indexCurrentPoint   = 0;
+        Vbufsize            = 100;      //!< Размер буфера для осреднения скорости для оценки времени прибытия
+        switchPointDistance = 100;      //!< дальность для переключения на след ПМ, м
+        Vnom                = 100/3.6;  //!< Номинальная скорость для расчета времени прибытия. 100 km/h пока так, потом решить
+        Vbuf.clear();
+        name.clear();
+        points.clear();
+    }
+
+    bool selectNextPoint(bool next)
+    {
+        if(next)
+        {
+            if(indexCurrentPoint < points.size()-1)
+            {
+                ++indexCurrentPoint;
+                return true;
+            }
+            return false;
+        }else
+        {
+            if(indexCurrentPoint != 0)
+            {
+                --indexCurrentPoint;
+                return true;
+            }
+            return false;
+        }
+    }
+};
+
+#if 0
+struct ActivePlanGuide
+{
+    struct PointParams
+    {
+        QString name;         //!< Название точки
+        float   latitude;     //!< Широта точки  в WGS84, рад
+        float   longitude;    //!< Долгота точки в WGS84, рад
+        float   altitude;     //!< Высота точки  в WGS84, м
+        quint32 LUR;          //!< Способ пролета точки, 0 - через точку, не 0 - с упреждением разворота
+        quint32 pointType;    //!< Тип точки (разворота, разгона, контроля, входа в зону, выхода из зоны)
+
+        //! расчетные данные
+        float   distanceFromPrevPoint;     //!< Расстояние до этой точки от предыдущей, м
+        float   distanceFromCurPosition;   //!< Расстояние до этой точки от текущего положения, м
+        quint32 timeSecFromPrevPoint;      //!< Время прибытия до точки от предыдущей, с
+        quint32 timeSecFromCurPosition;    //!< Время прибытия до точки от текущего положения, с
+    };
+
+    QString name;                   //!< Название маршрута
+    QVector<PointParams> points;    //!< Точки маршрута
+
+    void clear()
+    {
+        name.clear();
+        points.clear();
+    }
+};
+
+struct ActivePlanRouteGuide
+{
+    uint32_t  indexCurrentPoint;            //!< индекс текущей точки в маршруте, с 0
+    float     trackDeviationZ;              //!< боковое уклонение ВС от линии заданного пути, м            **
+    float     distanceTrackLineToCurPoint;  //!< расстояние вдоль линии пути до текущей точки, м
+    float     azimuthToCurPoint;            //!< азимут от ВС на текущую точку, радианы                     **
+    float     desiredTrackAngleToCurPoint;  //!< заданный путевой угол от ВС на текущую точку, радианы
+    float     desiredAltitudeToCurPoint;    //!< заданная высота полета на текущую точку, м
+    float     distanceToCurPoint;           //!< дальность до следующей точки, м                            **
+    uint32_t  remainTimeToCurPoint;         //!< оставшееся время до прибытия в текущую точку, сек          **
+    uint32_t  remainTimeToNextPoint;        //!< оставшееся время до прибытия в следующую точку, сек        **
+    float     coursePlank;                  //!< горизонтальный директорный индекс, у.е.
+    float     glissadePlank;                //!< вертикальный директорный индекс, градусы
+    uint32_t  isNav;                        //!< 1 - в режиме наведение, 0 - стабилизация
+    uint32_t  isDirectTo;                   //!< первую точку летим в режиме "Прямо На"
+
+    // параметры управления
+    float    Kpsi;       //!< Коэффициент для горизонтального индекса
+    float    Kz;         //!< Коэффициент для горизонтального индекса
+    float    Kh_nav;     //!< Коэффициент для вертикального индекса в режиме "Наведение"
+    float    Kh_stb;     //!< Коэффициент для вертикального индекса в режиме "Стабилизация"
+    float    Kv;         //!< Коэффициент для вертикального индекса
+    float    switchPointDistance;       //!< Дальность для переключения на след. ППМ, метры
+    float    Vnom;       //!< Номинальная скорость для расчета времени прибытия (если тек. скорость меньше этой, берем эту) m/s
+
+    quint32 Vbufsize;    //!< Размер буфера для осредения скорости для оценки времени прибытия
+    QQueue<float> Vbuf;  //!< Буфер для осреднения скорости
+
+    ActivePlanRouteGuide()
+    {
+        reset();
+    }
+
+    void reset()
+    {
+        indexCurrentPoint = 0;
+
+        trackDeviationZ             = 0;
+        distanceTrackLineToCurPoint = 0;
+        azimuthToCurPoint           = 0;
+        desiredTrackAngleToCurPoint = 0;
+        desiredAltitudeToCurPoint   = 0;
+        distanceToCurPoint          = 0;
+        remainTimeToCurPoint        = 0;
+        coursePlank     = 0;
+        glissadePlank   = 0;
+        isNav           = 0;
+        isDirectTo      = 0;
+
+        Kpsi = 0.3f;        //!< коэффициент для горизонтального индекса (было 0.3 для ограничения до -54..+54 градуса)
+        Kz   = -0.2f;       //!< коэффициент для горизонтального индекса.
+
+        Kh_nav = 0.1f;      //!< коэффициент вертикального индекса в режиме наведения
+        Kh_stb = 0.1f;      //!< коэффициент вертикального индекса в режиме стабилизации
+        Kv     = -8e-4f;    //!< коэффициент для вертикального индекса
+
+        Vbufsize = 100;     //!< Размер буфера для осреднения скорости для оценки времени прибытия
+        Vbuf.clear();
+
+        switchPointDistance = 100;      //!< дальность для переключения на след ПМ, м
+        Vnom                = 300/3.6;  //!< Номинальная скорость для расчета времени прибытия. 100 km/h пока так, потом решить
+    }
+
+    /** Переключение на след/пред точку маршрута
+     *
+     * При достижении первой точки дальше не переключает.
+     * Проверка верхней границы точек выполняется в routeGuide, так как там есть доступ к полному маршруту.
+     * \param [in] next - если true - то переключаем на след точку, false - на предыдущую
+     */
+    void selectNextPoint(bool next)
+    {
+        if(next)
+        {
+            ++indexCurrentPoint;
+        }else
+        {
+            if(indexCurrentPoint != 0)
+                --indexCurrentPoint;
+        }
+    }
+};
+
+// ==========================================================================================
+
+enum class ModeMfiScreen
+{
+    SCREEN_NONE = 0,
+    SCREEN_PIL,
+    SCREEN_NAV,
+    SCREEN_TECH,
+};
+
+enum class TypeStatePil : uint8_t
+{
+    PIL_STATE_NONE = 0,
+    PIL_STATE_MAIN,
+    PIL_STATE_SET_COURSE,
+    PIL_STATE_SET_TRACK_ANGLE,
+
+};
 //==============================================================================
 enum MessageBitsDiffSrc: uint16_t
 {
@@ -40,7 +246,7 @@ enum SourceData: uint32_t
     IVSP1R_ENABLED = 0x00002000,
     IVSP1R_AIR_SRC = 0x00004000,
 
-#if 0
+
     BINS1_ENABLED = 0x00000001,
     BINS2_ENABLED = 0x00000002,
     BINS1_NAV_SRC = 0x00000004,
@@ -59,10 +265,8 @@ enum SourceData: uint32_t
     ISRP2_AIR_SRC = 0x00002000,
 
     AUTO_SELECT_SELECTED = 0x00004000,
-#endif
 };
 
-#if 0
 //==============================================================================
 /**
  * @brief Структура содержащая сведения для управления БНП.
@@ -123,7 +327,7 @@ inline bool BnpQuery::setChannelILS(int ch)
     return freqILS != WRONG_FREQ;
 }
 
-#endif
+
 //==============================================================================
 /**
  * @brief Структура для управления ИВСП
@@ -298,204 +502,6 @@ struct NavDataFp
     float latitude   {std::numeric_limits<float>::quiet_NaN()}; //!< широта, радианы
     float trackSpeed {std::numeric_limits<float>::quiet_NaN()}; //!< путевая скорость, м/с
 };
-
-struct ActivePlanGuide
-{
-    struct PointParams
-    {
-        QString name;            //!< Название точки
-        float   latitude;        //!< Широта точки  в WGS84, рад
-        float   longitude;       //!< Долгота точки в WGS84, рад
-        float   altitude;        //!< Высота точки  в WGS84, м
-    };
-
-    QString  name;                //!< Название маршрута
-    uint32_t indexCurrentPoint;   //!< индекс текущей точки в маршруте, с 0
-    float    switchPointDistance; //!< Дальность для переключения на след. ППМ, метры
-    float    Vnom;                //!< Номинальная скорость для расчета времени прибытия (если тек. скорость меньше этой, берем эту) m/s
-    quint32  Vbufsize;            //!< Размер буфера для осредения скорости для оценки времени прибытия
-    QVector<PointParams> points;  //!< Точки маршрута
-    QQueue<float>        Vbuf;    //!< Буфер для осреднения скорости
-
-    float azimuthToNextPPM        {0.0f};     //!< азимут от ВС на след ППМ, рад
-    float distanceToNextPPM       {0.0f};     //!< дальность от ВС на след ППМ, м
-    float distanceToNextNextPPM   {0.0f};     //!< дальность от ВС на след после активной ППМ, м
-    float remainTimeToCurPoint    {0.0f};     //!< оставшееся время до прибытия в текущую точку, сек
-    float remainTimeToNextPoint   {0.0f};     //!< оставшееся время до прибытия в следующую точку, сек
-    float trackDeviationZ         {0.0f};     //!< боковое отклонение от линии заданного пути, м
-    //
-    float curSpeed                {0.0f};     //!< текущая скорость ВС, м/с
-    float meanSpeed               {0.0f};     //!< средняя скорость ВС, м/с
-
-    ActivePlanGuide() { reset(); }
-
-    void clearData()
-    {
-        float azimuthToNextPPM        = 0.0f;
-        float distanceToNextPPM       = 0.0f;
-        float distanceToNextNextPPM   = 0.0f;
-        float remainTimeToCurPoint    = 0.0f;
-        float remainTimeToNextPoint   = 0.0f;
-        float trackDeviationZ         = 0.0f;
-        //
-        float curSpeed                = 0.0f;
-        float meanSpeed               = 0.0f;
-    }
-
-    void reset()
-    {
-        indexCurrentPoint   = 0;
-        Vbufsize            = 100;      //!< Размер буфера для осреднения скорости для оценки времени прибытия
-        switchPointDistance = 100;      //!< дальность для переключения на след ПМ, м
-        Vnom                = 300/3.6;  //!< Номинальная скорость для расчета времени прибытия. 100 km/h пока так, потом решить
-        Vbuf.clear();
-        name.clear();
-        points.clear();
-    }
-
-    void selectNextPoint(bool next)
-    {
-        if(next)
-        {
-            if(indexCurrentPoint < points.size()-1)
-                ++indexCurrentPoint;
-        }else
-        {
-            if(indexCurrentPoint != 0)
-                --indexCurrentPoint;
-        }
-    }
-};
-
-#if 0
-struct ActivePlanGuide
-{
-    struct PointParams
-    {
-        QString name;         //!< Название точки
-        float   latitude;     //!< Широта точки  в WGS84, рад
-        float   longitude;    //!< Долгота точки в WGS84, рад
-        float   altitude;     //!< Высота точки  в WGS84, м
-        quint32 LUR;          //!< Способ пролета точки, 0 - через точку, не 0 - с упреждением разворота
-        quint32 pointType;    //!< Тип точки (разворота, разгона, контроля, входа в зону, выхода из зоны)
-
-        //! расчетные данные
-        float   distanceFromPrevPoint;     //!< Расстояние до этой точки от предыдущей, м
-        float   distanceFromCurPosition;   //!< Расстояние до этой точки от текущего положения, м
-        quint32 timeSecFromPrevPoint;      //!< Время прибытия до точки от предыдущей, с
-        quint32 timeSecFromCurPosition;    //!< Время прибытия до точки от текущего положения, с
-    };
-
-    QString name;                   //!< Название маршрута
-    QVector<PointParams> points;    //!< Точки маршрута
-
-    void clear()
-    {
-        name.clear();
-        points.clear();
-    }
-};
-
-struct ActivePlanRouteGuide
-{
-    uint32_t  indexCurrentPoint;            //!< индекс текущей точки в маршруте, с 0
-    float     trackDeviationZ;              //!< боковое уклонение ВС от линии заданного пути, м            **
-    float     distanceTrackLineToCurPoint;  //!< расстояние вдоль линии пути до текущей точки, м
-    float     azimuthToCurPoint;            //!< азимут от ВС на текущую точку, радианы                     **
-    float     desiredTrackAngleToCurPoint;  //!< заданный путевой угол от ВС на текущую точку, радианы
-    float     desiredAltitudeToCurPoint;    //!< заданная высота полета на текущую точку, м
-    float     distanceToCurPoint;           //!< дальность до следующей точки, м                            **
-    uint32_t  remainTimeToCurPoint;         //!< оставшееся время до прибытия в текущую точку, сек          **
-    uint32_t  remainTimeToNextPoint;        //!< оставшееся время до прибытия в следующую точку, сек        **
-    float     coursePlank;                  //!< горизонтальный директорный индекс, у.е.
-    float     glissadePlank;                //!< вертикальный директорный индекс, градусы
-    uint32_t  isNav;                        //!< 1 - в режиме наведение, 0 - стабилизация
-    uint32_t  isDirectTo;                   //!< первую точку летим в режиме "Прямо На"
-
-    // параметры управления
-    float    Kpsi;       //!< Коэффициент для горизонтального индекса
-    float    Kz;         //!< Коэффициент для горизонтального индекса
-    float    Kh_nav;     //!< Коэффициент для вертикального индекса в режиме "Наведение"
-    float    Kh_stb;     //!< Коэффициент для вертикального индекса в режиме "Стабилизация"
-    float    Kv;         //!< Коэффициент для вертикального индекса
-    float    switchPointDistance;       //!< Дальность для переключения на след. ППМ, метры
-    float    Vnom;       //!< Номинальная скорость для расчета времени прибытия (если тек. скорость меньше этой, берем эту) m/s
-
-    quint32 Vbufsize;    //!< Размер буфера для осредения скорости для оценки времени прибытия
-    QQueue<float> Vbuf;  //!< Буфер для осреднения скорости
-
-    ActivePlanRouteGuide()
-    {
-        reset();
-    }
-
-    void reset()
-    {
-        indexCurrentPoint = 0;
-
-        trackDeviationZ             = 0;
-        distanceTrackLineToCurPoint = 0;
-        azimuthToCurPoint           = 0;
-        desiredTrackAngleToCurPoint = 0;
-        desiredAltitudeToCurPoint   = 0;
-        distanceToCurPoint          = 0;
-        remainTimeToCurPoint        = 0;
-        coursePlank     = 0;
-        glissadePlank   = 0;
-        isNav           = 0;
-        isDirectTo      = 0;
-
-        Kpsi = 0.3f;        //!< коэффициент для горизонтального индекса (было 0.3 для ограничения до -54..+54 градуса)
-        Kz   = -0.2f;       //!< коэффициент для горизонтального индекса.
-
-        Kh_nav = 0.1f;      //!< коэффициент вертикального индекса в режиме наведения
-        Kh_stb = 0.1f;      //!< коэффициент вертикального индекса в режиме стабилизации
-        Kv     = -8e-4f;    //!< коэффициент для вертикального индекса
-
-        Vbufsize = 100;     //!< Размер буфера для осреднения скорости для оценки времени прибытия
-        Vbuf.clear();
-
-        switchPointDistance = 100;      //!< дальность для переключения на след ПМ, м
-        Vnom                = 300/3.6;  //!< Номинальная скорость для расчета времени прибытия. 100 km/h пока так, потом решить
-    }
-
-    /** Переключение на след/пред точку маршрута
-     *
-     * При достижении первой точки дальше не переключает.
-     * Проверка верхней границы точек выполняется в routeGuide, так как там есть доступ к полному маршруту.
-     * \param [in] next - если true - то переключаем на след точку, false - на предыдущую
-     */
-    void selectNextPoint(bool next)
-    {
-        if(next)
-        {
-            ++indexCurrentPoint;
-        }else
-        {
-            if(indexCurrentPoint != 0)
-                --indexCurrentPoint;
-        }
-    }
-};
 #endif
-
-// ==========================================================================================
-
-enum class ModeMfiScreen
-{
-    SCREEN_NONE = 0,
-    SCREEN_PIL,
-    SCREEN_NAV,
-    SCREEN_TECH,
-};
-
-enum class TypeStatePil : uint8_t
-{
-    PIL_STATE_NONE = 0,
-    PIL_STATE_MAIN,
-    PIL_STATE_SET_COURSE,
-    PIL_STATE_SET_TRACK_ANGLE,
-
-};
 
 #endif // STRUCT_DATA_H

@@ -473,4 +473,37 @@ void removeDistantPoint(std::vector<Waypoint> &vector, float dist, WaypointType 
     //                                vector.end());
 }
 
+void printNavDataFms(NavDataFms &data)
+{
+    qDebug() << QString("акт. точка:          %1\n"
+                        "след точка:          %2\n"
+                        "дальн. до акт.:      %3\n"
+                        "ост. время до акт.:  %4\n"
+                        "ост. время до след.: %5\n"
+                        "курс на акт.:        %6\n"
+                        "отклонение:          %7\n"
+                        "даль. до маяка:      %8")
+                        .arg(QString::fromStdString(data.activeWaypointIcao))
+                        .arg(QString::fromStdString(data.nextWaypointIcao))
+                        .arg(data.activeWaypointDistance)
+                        .arg(data.activeWaypointRemainTime)
+                        .arg(data.nextWaypointRemainTime)
+                        .arg(data.activeWaypointCourse)
+                        .arg(data.lateralDeviationPathLine)
+                        .arg(data.activeRadioBeaconDistance).toStdString().c_str();
+
+    auto plan = std::make_pair(CommandStatus::OK, data.activePlan);
+    printActivePlanInfo(plan);
+}
+
+bool operator ==(const Waypoint &one, const Waypoint &two)
+{
+    return one.latitude == two.latitude && one.longitude == two.longitude;
+}
+
+bool operator !=(const Waypoint &one, const Waypoint &two)
+{
+    return !(one == two);
+}
+
 }

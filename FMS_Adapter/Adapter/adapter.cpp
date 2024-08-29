@@ -11,7 +11,6 @@ AdapterFMS::AdapterFMS()
 
     qRegisterMetaType<Waypoint>("Waypoint");
     qRegisterMetaType<FlightPlan>("FlightPlan");
-    qRegisterMetaType<NavDataFp>("NavDataFp");
     qRegisterMetaType<uint32_t>("uint32_t");
     qRegisterMetaType<QByteArray*>("QByteArray*");
 }
@@ -72,6 +71,20 @@ std::pair<CommandStatus, FlightPlan> AdapterFMS::getPlan(uint32_t id)
         }
 }
 
+CommandStatus AdapterFMS::savePlan(FlightPlan &plan)
+{
+    if(!connector->isTcpConnected)
+        return CommandStatus::NO_CONNECTION;
+    else
+        if(!createRequestAndSend(cmdID::SAVE_PLAN, plan))
+            return CommandStatus::ERROR_DATABASE;
+    else{
+            CommandStatus status;
+            getDataFromResponse(connector->inputData, status);
+            return status;
+        }
+}
+
 std::pair<CommandStatus, std::vector<FlightPlanInfo> > AdapterFMS::getCatalogInfoOfPlans()
 {
     if(!connector->isTcpConnected)
@@ -116,6 +129,22 @@ std::pair<CommandStatus, Waypoint> AdapterFMS::getWaypoint(uint32_t id)
         }
 }
 
+CommandStatus AdapterFMS::saveWaypoint(Waypoint &point)
+{
+    if(!connector->isTcpConnected)
+        return CommandStatus::NO_CONNECTION;
+    else
+        if(!createRequestAndSend(cmdID::SAVE_WAYPOINT, point))
+            return CommandStatus::ERROR_DATABASE;
+    else
+        {
+            CommandStatus status;
+            getDataFromResponse(connector->inputData, status);
+            return status;
+        }
+}
+
+// synch
 NavDataFms& AdapterFMS::setDeviceFlightData(const DeviceFlightData &data)
 {
     sharedDataCtrl.lock();
@@ -125,31 +154,25 @@ NavDataFms& AdapterFMS::setDeviceFlightData(const DeviceFlightData &data)
     return calculatPlan.navDataFms;
 }
 
-CommandStatus AdapterFMS::activatePlan(uint32_t planId)
+// asynch
+std::pair<CommandStatus, FlightPlan> AdapterFMS::activatePlan(uint32_t planId)
 {
-    std::pair<CommandStatus, FlightPlan> response = getPlan(planId);
-    if(response.first != CommandStatus::OK)
-        return response.first;
+    std::pair<CommandStatus, FlightPlan> res = getPlan(planId);
+    if(res.first != CommandStatus::OK)
+        return std::make_pair(res.first, FlightPlan());
 
-    if(response.second.waypoints.empty())
-        return CommandStatus::INVALID;
+    if(res.second.waypoints.empty())
+        return std::make_pair(CommandStatus::INVALID, FlightPlan());
 
     sharedDataCtrl.lock();
-    calculatPlan.setRoute(response.second);
+    calculatPlan.setRoute(res.second);
     activePlanIsSet = true;
     sharedDataCtrl.unlock();
 
-    return CommandStatus::OK;
+    return std::make_pair(CommandStatus::OK, res.second);
 }
 
-void AdapterFMS::deactivatePlan()
-{
-    sharedDataCtrl.lock();
-    calculatPlan.resetRoute();
-    activePlanIsSet = false;
-    sharedDataCtrl.unlock();
-}
-
+// synch
 std::pair<fp::CommandStatus, fp::ActivePlanInfo> AdapterFMS::getActivePlanInfo()
 {
     ActivePlanInfo activePlanInfo{};
@@ -164,6 +187,58 @@ std::pair<fp::CommandStatus, fp::ActivePlanInfo> AdapterFMS::getActivePlanInfo()
     sharedDataCtrl.unlock();
 
     return std::make_pair(statusCommand, activePlanInfo);
+}
+
+// synch
+bool AdapterFMS::selectNextPoint(bool direction)
+{
+    sharedDataCtrl.lock();
+    bool status {activePlanIsSet};
+    if(status)
+        calculatPlan.selectNextPoint(direction);
+    sharedDataCtrl.unlock();
+
+    return status;
+}
+
+void AdapterFMS::addWaypointToEditPlan(uint32_t position, Waypoint &point)
+{
+    if(beginEditPlan)
+    {
+        if(position < 0 || position > editablePlan.waypoints.size())
+            return;
+
+        auto it = editablePlan.waypoints.begin();
+        editablePlan.waypoints.insert(it + position, point);
+
+        createNameForPlan(editablePlan);
+    }
+}
+
+void AdapterFMS::deleteWaypointFromEditPlan(uint32_t position)
+{
+    if(beginEditPlan)
+    {
+        if(position < 0 || position >= editablePlan.waypoints.size())
+            return;
+
+        auto it = editablePlan.waypoints.begin();
+        editablePlan.waypoints.erase(it + position);
+
+        createNameForPlan(editablePlan);
+    }
+}
+
+void AdapterFMS::setEditablePlan(FlightPlan &plan)
+{
+    beginEditPlan = true;
+    editablePlan = plan;
+}
+
+FlightPlan &AdapterFMS::getEditablePlan()
+{
+    beginEditPlan = false;
+    return editablePlan;
 }
 
 //void AdapterFMS::getNearestWaypoints(double lat, double lon, float dist, fp::WaypointType type)

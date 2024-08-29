@@ -54,7 +54,7 @@ struct Waypoint
 
 struct FlightPlan
 {
-    uint32_t              id;           //!< id плана
+    int32_t               id;           //!< id плана
     std::string           name;         //!< наименование плана
     std::vector<Waypoint> waypoints;    //!< список точек маршрута
 };
@@ -64,7 +64,7 @@ struct WaypointRouteInfo
     uint32_t     id;        //!< id ППМ                         // ***** ADD **** //
     std::string  icao;      //!< ИКАО ППМ (max 4 символа)
     uint16_t     bearing;   //!< курс на ППМ, градус
-    uint16_t     distance;  //!< дальность до ППМ, м
+    uint32_t     distance;  //!< дальность до ППМ, м
     uint16_t     altitude;  //!< высота ППМ, м
     bool isActive;          //!< true - активная ППМ
 };
@@ -80,7 +80,7 @@ struct ActivePlanInfo
 {
     uint32_t                       id;             //!< id плана
     std::string                    name;           //!< наименование плана
-    uint16_t                       remainFlightDistance; //!< оставшееся расстояние полета по маршруту, м
+    uint32_t                       remainFlightDistance; //!< оставшееся расстояние полета по маршруту, м
     uint32_t                       remainFlightTime;     //!< оставшееся время полета по маршруту, c
     Waypoint                       activeWaypoint; //!< информация об активной точке
     std::vector<WaypointRouteInfo> waypoints;      //!< список точек маршрута с информацией
@@ -95,8 +95,8 @@ struct RouteInfo
 
 struct DeviceFlightData
 {
-    float longitude {std::numeric_limits<float>::quiet_NaN()}; //!< долгота, радианы
     float latitude  {std::numeric_limits<float>::quiet_NaN()}; //!< широта, радианы
+    float longitude {std::numeric_limits<float>::quiet_NaN()}; //!< долгота, радианы
     float speedVx   {std::numeric_limits<float>::quiet_NaN()}; //!< земная скорость на север, м/с
     float speedVz   {std::numeric_limits<float>::quiet_NaN()}; //!< земная скорость на восток, м/с
 };

@@ -122,6 +122,7 @@ bool Controller::decodeRequest()
     switch (hdr.id)
     { 
     case cmdID::GET_PLAN:                   db.getPlan();               break;
+    case cmdID::SAVE_PLAN:                  db.savePlan();              break;
     case cmdID::GET_WAYPOINT:               db.getWaypoint();           break;
     case cmdID::GET_CATALOG_INFO_OF_PLANS:  db.getCatalogInfoOfPlans(); break;
     case cmdID::GET_PLAN_ROUTE_INFO:        db.getPlanRouteInfo();      break;

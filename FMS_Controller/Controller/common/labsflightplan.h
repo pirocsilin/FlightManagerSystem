@@ -74,6 +74,10 @@ enum cmdID
     GET_WAYPOINT,               //!< получить ППМ
     GET_CATALOG_INFO_OF_PLANS,  //!< сведения о каждом плане полета в каталоге
     GET_PLAN_ROUTE_INFO,        //!< данные о плане со списком точек
+    //
+    SAVE_PLAN,                  //!< сохранить план в базу
+    SAVE_WAYPOINT,              //!< сохранить ППМ в базу
+    //
     ERROR_DATABASE,             //!< FMS вернул ошибку БД
 };
 QDataStream &operator << (QDataStream &stream, const cmdID &data);

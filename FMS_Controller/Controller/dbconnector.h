@@ -58,12 +58,14 @@ public:
     int editablePlan{-1};                   //!< Редактируемый план
 
     void getPlan                ();
+    void savePlan               ();
     void getWaypoint            ();
+    void saveWaypoint           ();
     void getCatalogInfoOfPlans  ();
     void getPlanRouteInfo       ();
-
     //
-
+    bool insertWaypointIntoPlan (FlightPlan &);
+    //
     void findWaypoint           ();
     void getNearestWaypoints    ();
     void getWaypointByIdetifier ();

@@ -17,6 +17,12 @@
 #include "active_plan/mathplan.h"
 #include "connector.h"
 
+#define ASYNC_INVOKE(methodName, ...) \
+    if(QThread::currentThreadId() != selfThread) { \
+        QMetaObject::invokeMethod(this, #methodName, Qt::QueuedConnection, __VA_ARGS__); \
+        return; \
+    }
+
 using namespace fp;
 
 class AdapterFMS : public QObject
@@ -33,8 +39,10 @@ private:
     QSharedPointer<Connector> connector;
     QThread connectorThread;
 
-    bool activePlanIsSet {false};
-    ManagerCalculationPlan calculatPlan;
+    bool activePlanIsSet  {false};
+    bool beginEditPlan    {false};
+    ManagerCalculationPlan calculatPlan;    //!< манагер рассчета параметров активного плана
+    FlightPlan editablePlan;                //!< редактируемый план
 
     template<typename... Args>
     bool createRequestAndSend(cmdID id, Args... args);
@@ -50,6 +58,12 @@ public:
     // получение плана полета из базы данных по id
     std::pair<fp::CommandStatus, fp::FlightPlan> getPlan(uint32_t id);
 
+    // сохранить план в базу
+    fp::CommandStatus savePlan(FlightPlan &plan);
+
+    // загрузить
+    std::pair<fp::CommandStatus, fp::FlightPlan> setPlan(uint32_t id);
+
     // получение информации о планах полета из БД для отображения в каталоге
     std::pair<fp::CommandStatus, std::vector<fp::FlightPlanInfo>> getCatalogInfoOfPlans();
 
@@ -59,17 +73,26 @@ public:
     // получить ППМ по id
     std::pair<fp::CommandStatus, fp::Waypoint> getWaypoint(uint32_t idWaypoint);
 
+    // сохранить ППМ в базе
+    fp::CommandStatus saveWaypoint(Waypoint &point);
+
     // рассчитать и вернуть навигационные параметры
     fp::NavDataFms& setDeviceFlightData(const fp::DeviceFlightData& data);
 
     // активация плана полета по его идентификатору
-    fp::CommandStatus activatePlan(uint32_t planId);
-
-    // очистить активный план полета
-    void deactivatePlan();
+    std::pair<CommandStatus, FlightPlan> activatePlan(uint32_t planId);
 
     // получение сведения об активном плане
     std::pair<fp::CommandStatus, fp::ActivePlanInfo> getActivePlanInfo();
+
+    // переключение на следующую и предыдущую ППМ (true - след, false - перд)
+    bool selectNextPoint(bool direction);
+
+    void addWaypointToEditPlan(uint32_t position, Waypoint &point); //!< вставить точку в редактируемый план
+    void deleteWaypointFromEditPlan(uint32_t position);             //!< удалить точку из редактируемого плана
+
+    void setEditablePlan(FlightPlan &);     //!< установить редактируемый план
+    FlightPlan& getEditablePlan();          //!< получить редактируемый план
 
     /**
      * @brief Активация режима Прямо На для точки в активном плане

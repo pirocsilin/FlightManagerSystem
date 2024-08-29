@@ -10,8 +10,8 @@ ManagerCalculationPlan::ManagerCalculationPlan()
 {
     resetRoute();
 }
-
-void ManagerCalculationPlan::setRoute(FlightPlan &plan)
+#include <QPair>
+void ManagerCalculationPlan::setRoute(FlightPlan &plan, uint32_t activePoint)
 {
     // сбрасываем настройки ведения по маршруту
     resetRoute();
@@ -22,7 +22,7 @@ void ManagerCalculationPlan::setRoute(FlightPlan &plan)
     // заполняем структуру ActivePlanInfo
     activePlanInfo.id   = plan.id;
     activePlanInfo.name = plan.name;
-    activePlanInfo.activeWaypoint = plan.waypoints[0];
+    activePlanInfo.activeWaypoint = plan.waypoints[activePoint];
 
     std::vector<Waypoint> &vec = plan.waypoints;
     for(int i{}; i<vec.size(); i++)
@@ -32,9 +32,9 @@ void ManagerCalculationPlan::setRoute(FlightPlan &plan)
         pointInfo.id        = vec[i].id;
         pointInfo.icao      = vec[i].icao;
         pointInfo.altitude  = vec[i].altitude;
-        pointInfo.isActive  = i==0 ? true : false;
+        pointInfo.isActive  = i==activePoint ? true : false;
 
-        if(i)
+        if(i >= activePoint + 1)
         {
             float distance;
             float bearing;
@@ -44,7 +44,7 @@ void ManagerCalculationPlan::setRoute(FlightPlan &plan)
                                              qDegreesToRadians(vec[i].longitude),
                                              &distance, &bearing);
 
-            pointInfo.distance = distance * EARTH_RADIUS / 1000;
+            pointInfo.distance = distance * EARTH_RADIUS;
             pointInfo.bearing  = bearing * 180 / M_PI;
         }
         activePlanInfo.waypoints.push_back(pointInfo);
@@ -113,15 +113,71 @@ void ManagerCalculationPlan::setNavData(const fp::DeviceFlightData &data)
         navDataFms.activeWaypointDistance   = fpg.distanceToNextPPM * 10;
         navDataFms.activeWaypointRemainTime = fpg.remainTimeToCurPoint;
         navDataFms.nextWaypointRemainTime   = fpg.remainTimeToNextPoint;
-        navDataFms.lateralDeviationPathLine = fpg.azimuthToNextPPM;
+        navDataFms.activeWaypointCourse     = fpg.azimuthToNextPPM * 180 / M_PI;
         navDataFms.lateralDeviationPathLine = fpg.trackDeviationZ;
+        //
+        // navDataFms.activeRadioBeaconDistance
+        //
         navDataFms.activePlan               = activePlanInfo;
 
         // проверка переключения на следующую точку маршрута
         //
+        qDebug() << fpg.distanceToNextPPM << ":" << fpg.switchPointDistance;
         if(fpg.distanceToNextPPM <= fpg.switchPointDistance)
-            fpg.selectNextPoint(true);
+            selectNextPoint(true);
     }
+}
+
+void ManagerCalculationPlan::selectNextPoint(bool direction)
+{
+    uint32_t curIndex = fpg.indexCurrentPoint;
+
+    if(fpg.selectNextPoint(direction))
+    {
+        activePlanInfo.waypoints[curIndex].isActive = false;
+        activePlanInfo.waypoints[fpg.indexCurrentPoint].isActive = true;
+        activePlanInfo.activeWaypoint = activePlan.waypoints[fpg.indexCurrentPoint];
+    }
+}
+
+FlightPlan &ManagerCalculationPlan::getEditActivePlan()
+{
+    editActivePlan = activePlan;
+    return editActivePlan;
+}
+
+void ManagerCalculationPlan::setEditActivePlan()
+{
+    activePlan = editActivePlan;
+}
+
+uint32_t ManagerCalculationPlan::getIndexActivePoint()
+{
+    return fpg.indexCurrentPoint;
+}
+
+void ManagerCalculationPlan::addWaypointToActivePlan(uint32_t position, Waypoint &point)
+{
+    if(position < 0 || position >= editActivePlan.waypoints.size())
+        return;
+
+    if(position == editActivePlan.waypoints.size()-1)
+        editActivePlan.waypoints.push_back(point);
+    else
+    {
+        auto it = editActivePlan.waypoints.begin();
+        editActivePlan.waypoints.insert(it + position, point);
+    }
+    createNameForPlan(editActivePlan);
+
+    uint32_t indexCurrentPoint = fpg.indexCurrentPoint;
+    uint32_t indexPsitionAfterInsert = position <= indexCurrentPoint ?
+                                       indexCurrentPoint + 1 :
+                                       indexCurrentPoint;
+    setRoute(editActivePlan);
+
+    for(uint32_t i{}; i < indexPsitionAfterInsert; i++)
+        selectNextPoint(true);
 }
 
 bool ManagerCalculationPlan::calcActivePlan(float latitudeCurPosition, float longitudeCurPosition, float Vx, float Vz)
@@ -169,6 +225,8 @@ bool ManagerCalculationPlan::calcActivePlan(float latitudeCurPosition, float lon
         fpg.distanceToNextPPM   *= EARTH_RADIUS;
         fpg.trackDeviationZ = fpg.distanceToNextPPM * sin(delta_az_back);
     }
+
+    qDebug() << __PRETTY_FUNCTION__ << latitudeCurPosition * 180 /M_PI << longitudeCurPosition * 180 /M_PI << curPoint.latitude * 180 /M_PI << curPoint.longitude * 180 /M_PI;
 
     bool nextPointExists  = fpg.indexCurrentPoint < fpg.points.size()-1;
     //
@@ -427,4 +485,20 @@ float ManagerCalculationPlan::bound_2pi(float val, float bnd)
         val += bnd;
 
     return val;
+}
+
+void ManagerCalculationPlan::trySafeOldActivePoint()
+{
+    bool pointsIsIdentity {true};
+    int pos {};
+    for(; pos <= fpg.indexCurrentPoint; pos++)
+    {
+        if(editActivePlan.waypoints[pos] != activePlan.waypoints[pos])
+        {
+            pointsIsIdentity = false;
+            break;
+        }
+    }
+    pos = pointsIsIdentity ? pos - 1 : 0;
+    setRoute(editActivePlan, pos);
 }

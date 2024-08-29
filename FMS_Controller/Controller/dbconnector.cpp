@@ -115,7 +115,7 @@ bool DBconnector::getPlanfromDB(int id, FlightPlan &plan)
     rec = DBquery.record();
     DBquery.next();
 
-    plan.id  = DBquery.value(rec.indexOf("id_flight_plan")).toInt();    // i'm here
+    plan.id  = DBquery.value(rec.indexOf("id_flight_plan")).toInt();
 
     query = QString("SELECT id_waypoint, icao, latitude, longitude, altitude, region, type, radio_freq, runway_id FROM fpl_points "
                     "INNER JOIN waypoints ON id_waypoint = id "
@@ -160,6 +160,87 @@ void DBconnector::getPlan()
         return;
 
     *outData << *hdr << plan;
+}
+
+void DBconnector::savePlan()
+{
+    FlightPlan plan;
+
+    *inputData >> plan;
+
+    if(plan.id != -1)   //!< перезаписываем существующий план с проверкой на существование
+    {
+        query = QString("SELECT id_flight_plan FROM flight_plans WHERE id_flight_plan = %1;").arg(plan.id);
+        if(!executeQuery(query))
+            return;
+
+        if(!DBquery.next())
+            plan.id = -1;
+        else
+        {
+            if(!insertWaypointIntoPlan(plan))   // обновляем список точек
+                return;
+        }
+    }
+
+    if(plan.id == -1 && plan.waypoints.size() > 0)   //!< добавляем новый план в базу
+    {
+        query = QString("SELECT MAX(id_flight_plan) as maxId FROM flight_plans;");
+        if(!executeQuery(query))
+            return;
+
+        if(!DBquery.next())
+            plan.id = 1;
+        else
+        {
+            DBquery.seek(-1);
+            rec = DBquery.record();
+            DBquery.next();
+            int maxIdPlanInBase = DBquery.value(rec.indexOf("maxId")).toInt();
+            plan.id = maxIdPlanInBase + 1;
+        }
+
+        query = QString("INSERT INTO flight_plans (id_flight_plan) VALUES (%1);").arg(plan.id);
+        if(!executeQuery(query))
+            return;
+
+        if(!insertWaypointIntoPlan(plan))
+            return;
+    }
+
+    *outData << *hdr << fp::CommandStatus::OK;
+}
+
+bool DBconnector::insertWaypointIntoPlan(FlightPlan &plan)
+{
+    query = QString("DELETE FROM fpl_points WHERE id_flight_plan = %1;").arg(plan.id);
+    if(!executeQuery(query))
+        return false;
+
+    if(plan.waypoints.size() == 0)
+    {
+        query = QString("DELETE FROM flight_plans WHERE id_flight_plan = %1;").arg(plan.id);
+        if(!executeQuery(query))
+            return false;
+    }
+    else
+    {
+        query = QString("INSERT INTO fpl_points(id_flight_plan, id_waypoint, position_point) VALUES");
+        QString insertPart("");
+
+        int posPoint{1};
+        for(auto wPoint : plan.waypoints)
+        {
+            insertPart += QString("(%1, %2, %3),").arg(plan.id).arg(wPoint.id).arg(posPoint++);
+        }
+
+        query += insertPart.remove(insertPart.size()-1, 1) + ';';
+
+        if(posPoint > 1)
+            if(!executeQuery(query))
+                return false;
+    }
+    return true;
 }
 
 void DBconnector::getWaypoint()

@@ -85,6 +85,20 @@ CommandStatus AdapterFMS::savePlan(FlightPlan &plan)
         }
 }
 
+CommandStatus AdapterFMS::deletePlan(uint32_t id)
+{
+    if(!connector->isTcpConnected)
+        return CommandStatus::NO_CONNECTION;
+    else
+        if(!createRequestAndSend(cmdID::DELETE_PLAN, id))
+            return CommandStatus::ERROR_DATABASE;
+    else{
+            CommandStatus status;
+            getDataFromResponse(connector->inputData, status);
+            return status;
+        }
+}
+
 std::pair<CommandStatus, std::vector<FlightPlanInfo> > AdapterFMS::getCatalogInfoOfPlans()
 {
     if(!connector->isTcpConnected)

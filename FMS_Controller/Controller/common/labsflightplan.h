@@ -1,4 +1,4 @@
-﻿#ifndef LABSFLIGHTPLAN_H
+#ifndef LABSFLIGHTPLAN_H
 #define LABSFLIGHTPLAN_H
 
 #include <QDebug>
@@ -47,6 +47,11 @@ QDataStream& operator >> (QDataStream &stream, std::vector<WaypointRouteInfo> &o
 QDataStream &operator << (QDataStream &stream, const FlightPlanRouteInfo &obj);
 QDataStream &operator >> (QDataStream &stream, FlightPlanRouteInfo &obj);
 
+// compare Waypoint
+bool operator ==(const Waypoint &one, const Waypoint &two);
+bool operator !=(const Waypoint &one, const Waypoint &two);
+bool pointIsValid(const Waypoint &point);
+
 // FlightPlanRouteInfo
 void printWaypointRouteInfo(WaypointRouteInfo &point);
 void printFlightPlanRouteInfo(std::pair<CommandStatus, FlightPlanRouteInfo> &info);
@@ -71,11 +76,12 @@ void createNameForPlan(FlightPlan &plan);
 enum cmdID
 {
     GET_PLAN,                   //!< получить информацию о плане по id
+    SAVE_PLAN,                  //!< сохранить план в базу
+    DELETE_PLAN,                //!< удалить план из базы
     GET_WAYPOINT,               //!< получить ППМ
     GET_CATALOG_INFO_OF_PLANS,  //!< сведения о каждом плане полета в каталоге
     GET_PLAN_ROUTE_INFO,        //!< данные о плане со списком точек
     //
-    SAVE_PLAN,                  //!< сохранить план в базу
     SAVE_WAYPOINT,              //!< сохранить ППМ в базу
     //
     ERROR_DATABASE,             //!< FMS вернул ошибку БД

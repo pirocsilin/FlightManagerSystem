@@ -498,7 +498,15 @@ void printNavDataFms(NavDataFms &data)
 
 bool operator ==(const Waypoint &one, const Waypoint &two)
 {
-    return one.latitude == two.latitude && one.longitude == two.longitude;
+    return  one.id              ==  two.id              &&
+            one.icao            ==  two.icao            &&
+            one.region          ==  two.region          &&
+            one.type            ==  two.type            &&
+            one.latitude        ==  two.latitude        &&
+            one.longitude       ==  two.longitude       &&
+            one.altitude        ==  two.altitude        &&
+            one.radioFrequency  ==  two.radioFrequency  &&
+            one.runwayId        ==  two.runwayId;
 }
 
 bool operator !=(const Waypoint &one, const Waypoint &two)

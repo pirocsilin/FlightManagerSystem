@@ -59,12 +59,14 @@ public:
 
     void getPlan                ();
     void savePlan               ();
+    void deletePlan             ();
     void getWaypoint            ();
     void saveWaypoint           ();
     void getCatalogInfoOfPlans  ();
     void getPlanRouteInfo       ();
     //
     bool insertWaypointIntoPlan (FlightPlan &);
+    bool recordWaypointIntoBase (Waypoint&, bool=false);
     //
     void findWaypoint           ();
     void getNearestWaypoints    ();

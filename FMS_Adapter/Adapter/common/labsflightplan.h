@@ -78,11 +78,12 @@ void printNavDataFms(fp::NavDataFms& data);
 enum cmdID
 {
     GET_PLAN,                   //!< получить информацию о плане по id
+    SAVE_PLAN,                  //!< сохранить план в базу
+    DELETE_PLAN,                //!< удалить план из базы
     GET_WAYPOINT,               //!< получить ППМ
     GET_CATALOG_INFO_OF_PLANS,  //!< сведения о каждом плане полета в каталоге
     GET_PLAN_ROUTE_INFO,        //!< данные о плане со списком точек
     //
-    SAVE_PLAN,                  //!< сохранить план в базу
     SAVE_WAYPOINT,              //!< сохранить ППМ в базу
     //
     ERROR_DATABASE,             //!< FMS вернул ошибку БД

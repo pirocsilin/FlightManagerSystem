@@ -61,6 +61,9 @@ public:
     // сохранить план в базу
     fp::CommandStatus savePlan(FlightPlan &plan);
 
+    // удалить план из базы
+    fp::CommandStatus deletePlan(uint32_t);
+
     // загрузить
     std::pair<fp::CommandStatus, fp::FlightPlan> setPlan(uint32_t id);
 

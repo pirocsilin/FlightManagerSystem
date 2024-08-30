@@ -87,16 +87,10 @@ void testSelectNextPoint()
 
 void testAnyMethods(Controller &controller)
 {
-    Waypoint p1{1, "" , "", (fp::WaypointType)0, 0, 0, 0, 0, 0};
-    Waypoint p2{2, "" , "", (fp::WaypointType)0, 0, 0, 0, 0, 0};
-    Waypoint p3{1, "" , "", (fp::WaypointType)0, 0, 0, 0, 0, 0};
-    Waypoint p4{1, "" , "", (fp::WaypointType)0, 0, 0, 0, 0, 0};
+    Waypoint p1{35, "" , "GPT", (fp::WaypointType)2, 55, 66, 900, 150, 5};
 
-    FlightPlan plan{};
-    plan.id = 15;
-    plan.waypoints.insert(plan.waypoints.begin(), {p1, p2});
+    controller.saveWaypoint(p1);
 
-    controller.savePlan(plan);
 
     //    controller.getPlan(1);
     //    controller.getCatalogInfoOfPlans();

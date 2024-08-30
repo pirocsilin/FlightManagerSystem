@@ -468,4 +468,27 @@ void removeDistantPoint(std::vector<Waypoint> &vector, float dist, WaypointType 
     //                                vector.end());
 }
 
+bool operator ==(const Waypoint &one, const Waypoint &two)
+{
+    return  one.id              ==  two.id              &&
+            one.icao            ==  two.icao            &&
+            one.region          ==  two.region          &&
+            one.type            ==  two.type            &&
+            one.latitude        ==  two.latitude        &&
+            one.longitude       ==  two.longitude       &&
+            one.altitude        ==  two.altitude        &&
+            one.radioFrequency  ==  two.radioFrequency  &&
+            one.runwayId        ==  two.runwayId;
+}
+
+bool operator !=(const Waypoint &one, const Waypoint &two)
+{
+    return !(one == two);
+}
+
+bool pointIsValid(const Waypoint &point)
+{
+    return !point.icao.empty();
+}
+
 }

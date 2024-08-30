@@ -41,7 +41,7 @@ struct Runway
 
 struct Waypoint
 {
-    uint32_t     id;             //!< id ППМ
+    int32_t      id;             //!< id ППМ
     std::string  icao;           //!< ИКАО ППМ (max 4 символа)
     std::string  region;         //!< географическое расположение ППМ
     WaypointType type;           //!< тип точки

@@ -26,18 +26,18 @@ void Controller::getPlan(uint32_t id)
 
 void Controller::savePlan(FlightPlan plan)
 {
-    //ASYNC_INVOKE(savePlan, Q_ARG(FlightPlan, plan))
-
-    qDebug() << QThread::currentThreadId() << " : " << selfThread;
-
-    if(QThread::currentThreadId() != selfThread)
-    {
-        QMetaObject::invokeMethod(this, "savePlan", Qt::QueuedConnection, Q_ARG(FlightPlan, plan));
-        return;
-    }
-
+    ASYNC_INVOKE(savePlan, Q_ARG(FlightPlan, plan))
 
     CommandStatus status = adapter.savePlan(plan);
+
+    // emit ...
+}
+
+void Controller::deletePlan(uint32_t id)
+{
+    ASYNC_INVOKE(deletePlan, Q_ARG(uint32_t, id))
+
+    CommandStatus status = adapter.deletePlan(id);
 
     // emit ...
 }
@@ -104,18 +104,23 @@ void Controller::startEditPlan(uint32_t id)
 {
     ASYNC_INVOKE(startEditPlan, Q_ARG(uint32_t, id))
 
-    std::pair<fp::CommandStatus, fp::FlightPlan> res = adapter.getPlan(id);
-
-    if(res.first == CommandStatus::OK)
+    CommandStatus status = CommandStatus::OK;
+    if(id == -1)
     {
-        adapter.setEditablePlan(res.second);
+        FlightPlan newPlan{};
+        newPlan.id = id;
+        adapter.setEditablePlan(newPlan);
     }
     else
     {
-        FlightPlan empty{};
-        adapter.setEditablePlan(empty);
+        std::pair<fp::CommandStatus, fp::FlightPlan> res = adapter.getPlan(id);
+        if(res.first == CommandStatus::OK)
+            adapter.setEditablePlan(res.second);
+
+        status = res.first;
     }
-    // emit CommandStatus
+
+    // emit status
 }
 
 void Controller::endEditPlan(bool safe, bool activate)

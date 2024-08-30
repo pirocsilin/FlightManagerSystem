@@ -162,10 +162,80 @@ void DBconnector::getPlan()
     *outData << *hdr << plan;
 }
 
+void DBconnector::saveWaypoint()
+{
+    Waypoint point;
+    *inputData >> point;
+
+    if(point.id != -1 && pointIsValid(point))
+    {
+        query = QString("SELECT id FROM waypoints WHERE id = %1;").arg(point.id);
+        if(!executeQuery(query))
+            return;
+
+        if(!DBquery.next())
+            point.id = -1;
+        else
+        {
+            if(!recordWaypointIntoBase(point, false))
+                return;
+        }
+    }
+
+    if(point.id == -1 && pointIsValid(point))
+    {
+        query = QString("SELECT MAX(id) as maxId FROM waypoints;");
+        if(!executeQuery(query))
+            return;
+
+        if(!DBquery.next())
+            point.id = 1;
+        else
+        {
+            DBquery.seek(-1);
+            rec = DBquery.record();
+            DBquery.next();
+            int maxIdWaypointInBase = DBquery.value(rec.indexOf("maxId")).toInt();
+            point.id = maxIdWaypointInBase + 1;
+        }
+
+        if(!recordWaypointIntoBase(point, true))
+            return;
+    }
+
+    *outData << *hdr << fp::CommandStatus::OK;
+}
+
+bool DBconnector::recordWaypointIntoBase(Waypoint &point, bool newPoint)
+{
+    if(newPoint)
+    {
+        query = QString("INSERT INTO waypoints(id, icao, latitude, longitude, region, type, "
+                        "altitude, radio_freq, runway_id) VALUES (%1, \"%2\", %3, %4, \"%5\", %6, %7, %8, %9);")
+                        .arg(point.id).arg(QString::fromStdString(point.icao)).arg(point.latitude)
+                        .arg(point.longitude).arg(QString::fromStdString(point.region)).arg((int)point.type)
+                        .arg(point.altitude).arg(point.radioFrequency).arg(point.runwayId);
+
+        if(!executeQuery(query))
+            return false;
+    }
+    else
+    {
+        query = QString("UPDATE waypoints SET icao = \"%1\", latitude = %2, longitude = %3, region = \"%4\", "
+                        "type = %5, altitude = %6, radio_freq = %7, runway_id = %8 WHERE id = %9;")
+                        .arg(QString::fromStdString(point.icao)).arg(point.latitude).arg(point.longitude)
+                        .arg(QString::fromStdString(point.region)).arg((int)point.type).arg(point.altitude)
+                        .arg(point.radioFrequency).arg(point.runwayId).arg(point.id);
+
+        if(!executeQuery(query))
+            return false;
+    }
+    return true;
+}
+
 void DBconnector::savePlan()
 {
     FlightPlan plan;
-
     *inputData >> plan;
 
     if(plan.id != -1)   //!< перезаписываем существующий план с проверкой на существование
@@ -207,6 +277,17 @@ void DBconnector::savePlan()
         if(!insertWaypointIntoPlan(plan))
             return;
     }
+
+    *outData << *hdr << fp::CommandStatus::OK;
+}
+
+void DBconnector::deletePlan()
+{
+    FlightPlan emptyPlan{};
+    *inputData >> emptyPlan.id;
+
+    if(!insertWaypointIntoPlan(emptyPlan))
+        return;
 
     *outData << *hdr << fp::CommandStatus::OK;
 }

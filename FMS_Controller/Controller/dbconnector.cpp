@@ -1,4 +1,4 @@
-﻿
+
 #include "dbconnector.h"
 #include <QString>
 
@@ -86,7 +86,8 @@ bool DBconnector::executeQuery(QString &request)
     if(!DBquery.exec(request))
     {
         hdr->id = cmdID::ERROR_DATABASE;
-        *outData << *hdr << "SQL_ERROR: "+DBquery.lastError().text();
+        QString errorMassage = DBquery.lastError().text();
+        *outData << *hdr << "SQL_ERROR: "+errorMassage;
         return false;
     }
     return true;
@@ -184,7 +185,8 @@ void DBconnector::saveWaypoint()
 
     if(point.id == -1 && pointIsValid(point))
     {
-        query = QString("SELECT MAX(id) as maxId FROM waypoints;");
+        query = QString("SELECT id FROM waypoints ORDER BY id ASC;");
+
         if(!executeQuery(query))
             return;
 
@@ -192,15 +194,63 @@ void DBconnector::saveWaypoint()
             point.id = 1;
         else
         {
+            int newId = 1;
             DBquery.seek(-1);
             rec = DBquery.record();
-            DBquery.next();
-            int maxIdWaypointInBase = DBquery.value(rec.indexOf("maxId")).toInt();
-            point.id = maxIdWaypointInBase + 1;
+            while(DBquery.next())
+            {
+                int curId = DBquery.value(rec.indexOf("id")).toInt();
+                if(newId < curId)
+                    break;
+                else
+                    newId++;
+            }
+            point.id = newId;
         }
 
         if(!recordWaypointIntoBase(point, true))
             return;
+    }
+
+    *outData << *hdr << fp::CommandStatus::OK;
+}
+
+void DBconnector::deleteWaypoint()
+{
+    uint32_t idPoint;
+    *inputData >> idPoint;
+
+    query = QString("SELECT id_flight_plan AS id, COUNT(DISTINCT id_waypoint) AS count FROM "
+                    "fpl_points WHERE id IN (SELECT id_flight_plan AS id FROM fpl_points WHERE "
+                    "id_waypoint=%1 GROUP BY id) GROUP BY id;").arg(idPoint);
+    if(!executeQuery(query))
+        return;
+
+    rec = DBquery.record();
+    std::vector<std::pair<int, int>> data{};
+    while(DBquery.next())
+    {
+        int id = DBquery.value(rec.indexOf("id")).toInt();
+        int count = DBquery.value(rec.indexOf("count")).toInt();
+        data.push_back(std::make_pair(id, count));
+    }
+
+    query = QString("DELETE FROM waypoints WHERE id=%1;").arg(idPoint);
+    if(!executeQuery(query))
+        return;
+
+    query = QString("DELETE FROM fpl_points WHERE id_waypoint=%1;").arg(idPoint);
+    if(!executeQuery(query))
+        return;
+
+    for(auto val : data)
+    {
+        if(val.second == 1)
+        {
+            query = QString("DELETE FROM flight_plans WHERE id_flight_plan = %1;").arg(val.first);
+            if(!executeQuery(query))
+                return;
+        }
     }
 
     *outData << *hdr << fp::CommandStatus::OK;

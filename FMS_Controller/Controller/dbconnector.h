@@ -62,6 +62,7 @@ public:
     void deletePlan             ();
     void getWaypoint            ();
     void saveWaypoint           ();
+    void deleteWaypoint         ();
     void getCatalogInfoOfPlans  ();
     void getPlanRouteInfo       ();
     //

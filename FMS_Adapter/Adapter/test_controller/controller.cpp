@@ -61,6 +61,33 @@ void Controller::saveWaypoint(Waypoint point)
     // emit ...
 }
 
+void Controller::deleteWaypoint(uint32_t id)
+{
+    ASYNC_INVOKE(deleteWaypoint, Q_ARG(uint32_t, id))
+
+    CommandStatus status{CommandStatus::INVALID};
+    std::pair<fp::CommandStatus, fp::ActivePlanInfo> res = adapter.getActivePlanInfo();
+
+    if(res.first == CommandStatus::OK)
+    {
+        bool deletedPointInActivePlan {false};
+        for(auto point : res.second.waypoints)
+            if(point.id == id)
+            {
+                deletedPointInActivePlan = true;
+                break;
+            }
+        if(!deletedPointInActivePlan)
+        {
+            status = adapter.deleteWaypoint(id);
+        }
+    }
+    else
+        status = adapter.deleteWaypoint(id);
+
+    // emit status
+}
+
 void Controller::getCatalogInfoOfPlans()
 {
     if(QThread::currentThreadId() != selfThread)

@@ -24,6 +24,8 @@ public slots:
     void deletePlan(uint32_t id);           //!< удалить план из базы
     void getWaypoint(uint32_t id);          //!< получить ППМ из базы
     void saveWaypoint(Waypoint point);      //!< сохранить ППМ в базу  [id = -1, сохраняем новую ППМ]
+    void deleteWaypoint(uint32_t id);       //!< удалить ППМ из базы
+    //
     void getCatalogInfoOfPlans();
     void getPlanRouteInfo(uint32_t id);
     //

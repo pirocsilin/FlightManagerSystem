@@ -87,9 +87,10 @@ void testSelectNextPoint()
 
 void testAnyMethods(Controller &controller)
 {
-    Waypoint p1{35, "" , "GPT", (fp::WaypointType)2, 55, 66, 900, 150, 5};
+    Waypoint p1{-1, "GPT" , "RUS", (fp::WaypointType)2, 55, 66, 900, 150, 5};
 
-    controller.saveWaypoint(p1);
+    //controller.saveWaypoint(p1);
+    controller.deleteWaypoint(34);
 
 
     //    controller.getPlan(1);

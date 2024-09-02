@@ -158,6 +158,21 @@ CommandStatus AdapterFMS::saveWaypoint(Waypoint &point)
         }
 }
 
+CommandStatus AdapterFMS::deleteWaypoint(uint32_t id)
+{
+    if(!connector->isTcpConnected)
+        return CommandStatus::NO_CONNECTION;
+    else
+        if(!createRequestAndSend(cmdID::DELETE_WAYPOINT, id))
+            return CommandStatus::ERROR_DATABASE;
+    else
+        {
+            CommandStatus status;
+            getDataFromResponse(connector->inputData, status);
+            return status;
+        }
+}
+
 // synch
 NavDataFms& AdapterFMS::setDeviceFlightData(const DeviceFlightData &data)
 {

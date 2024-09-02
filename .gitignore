@@ -1,3 +1,5 @@
+sql_query
 *.odg
 *.user
 /build*
+

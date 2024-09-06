@@ -491,4 +491,18 @@ bool pointIsValid(const Waypoint &point)
     return !point.icao.empty();
 }
 
+QDataStream &operator <<(QDataStream &stream, const std::string &type)
+{
+    stream << QString::fromStdString(type);
+    return stream;
+}
+
+QDataStream &operator >>(QDataStream &stream, std::string &type)
+{
+    QString _type;
+    stream >> _type;
+    type = _type.toStdString();
+    return stream;
+}
+
 }

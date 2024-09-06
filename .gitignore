@@ -1,5 +1,6 @@
 sql_query
 *.odg
 *.user
+/garmin
 /build*
 

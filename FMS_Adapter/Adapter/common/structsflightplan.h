@@ -61,7 +61,7 @@ struct FlightPlan
 
 struct WaypointRouteInfo
 {
-    uint32_t     id;        //!< id ППМ                         // ***** ADD **** //
+    uint32_t     id;        //!< id ППМ
     std::string  icao;      //!< ИКАО ППМ (max 4 символа)
     uint16_t     bearing;   //!< курс на ППМ, градус
     uint32_t     distance;  //!< дальность до ППМ, м
@@ -113,6 +113,14 @@ struct NavDataFms
     uint32_t activeRadioBeaconDistance; //!< дальность до активного радиомаяка, м*10
     ActivePlanInfo activePlan;          //!< данные активного плана
 };
+
+typedef std::pair<CommandStatus, ActivePlanInfo>                ActivePlanInfoPair;
+typedef std::pair<CommandStatus, std::vector<FlightPlanInfo>>   FlightPlanInfoPair;
+typedef std::pair<fp::CommandStatus, fp::FlightPlan>            FlightPlanPair;
+typedef std::pair<CommandStatus, FlightPlanRouteInfo>           FlightPlanRouteInfoPair;
+typedef std::pair<CommandStatus, FlightPlan>                    FlightPlanPair;
+typedef std::pair<CommandStatus, ActivePlanInfo>                ActivePlanInfoPair;
+typedef std::pair<CommandStatus, std::vector<Waypoint>>         WaypointVectorPair;
 
 }
 

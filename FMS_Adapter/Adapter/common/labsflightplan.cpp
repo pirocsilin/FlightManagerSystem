@@ -108,6 +108,17 @@ void printWaypointFullInfo(Waypoint &pt)
     qDebug() << info.toUtf8().data();
 }
 
+void printWaypointVectorInfo(const WaypointVectorPair &res)
+{
+    qDebug() << "Status: " << (int)res.first;
+
+    if(res.first == CommandStatus::OK)
+    {
+        for(auto point : res.second)
+            printWaypointFullInfo(point);
+    }
+}
+
 QDataStream &operator <<(QDataStream &stream, const FlightPlanInfo &obj)
 {
     stream << obj.id
@@ -176,13 +187,13 @@ QDataStream &operator >>(QDataStream &stream, FlightPlan &plan)
     return stream;
 }
 
-QDataStream &operator <<(QDataStream &stream, const std::pair<CommandStatus, FlightPlan> &pair)
+QDataStream &operator <<(QDataStream &stream, const FlightPlanPair &pair)
 {
     stream << pair.first << pair.second;
     return stream;
 }
 
-QDataStream &operator >>(QDataStream &stream, std::pair<CommandStatus, FlightPlan> &pair)
+QDataStream &operator >>(QDataStream &stream, FlightPlanPair &pair)
 {
     stream >> pair.first >> pair.second;
     return stream;
@@ -203,6 +214,11 @@ QDataStream &operator >>(QDataStream &stream, cmdID &data)
     return stream;
 }
 
+void printCommandStatus(const CommandStatus &status)
+{
+    qDebug() << "Status: " << (int)status;
+}
+
 void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point)
 {
     qDebug() << "Status: " << (int)point.first;
@@ -213,7 +229,7 @@ void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point)
     }
 }
 
-void printPlanInfo(std::pair<fp::CommandStatus, fp::FlightPlan> &plan)
+void printPlanInfo(const std::pair<fp::CommandStatus, fp::FlightPlan> &plan)
 {
     qDebug() << "Status: " << (int)plan.first;
 
@@ -230,7 +246,7 @@ void printPlanInfo(std::pair<fp::CommandStatus, fp::FlightPlan> &plan)
     }
 }
 
-void printCatalogInfoOfPlans(std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> &plansInfo)
+void printCatalogInfoOfPlans(const std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> &plansInfo)
 {
     qDebug() << "Status: " << (int)plansInfo.first;
 
@@ -252,7 +268,7 @@ void printWaypointRouteInfo(WaypointRouteInfo &point)
                 .arg(point.id)
                 .arg(QString::fromStdString(point.icao))
                 .arg(point.bearing)
-                .arg(point.distance)
+                .arg(point.distance / 1000)     // км
                 .arg(point.altitude)
                 .arg(point.isActive);
 
@@ -260,7 +276,7 @@ void printWaypointRouteInfo(WaypointRouteInfo &point)
 }
 
 
-void printFlightPlanRouteInfo(std::pair<CommandStatus, FlightPlanRouteInfo> &data)
+void printFlightPlanRouteInfo(const FlightPlanRouteInfoPair &data)
 {
     qDebug() << "Status: " << (int)data.first;
 
@@ -276,7 +292,7 @@ void printFlightPlanRouteInfo(std::pair<CommandStatus, FlightPlanRouteInfo> &dat
     }
 }
 
-void printActivePlanInfo(std::pair<CommandStatus, ActivePlanInfo> &data)
+void printActivePlanInfo(const std::pair<CommandStatus, ActivePlanInfo> &data)
 {
     qDebug() << "Status: " << (int)data.first;
 
@@ -291,7 +307,7 @@ void printActivePlanInfo(std::pair<CommandStatus, ActivePlanInfo> &data)
         for(auto point : data.second.waypoints)
             printWaypointRouteInfo(point);
 
-        printWaypointFullInfo(data.second.activeWaypoint);
+        //printWaypointFullInfo(data.second.activeWaypoint);
     }
 }
 
@@ -512,6 +528,20 @@ bool operator ==(const Waypoint &one, const Waypoint &two)
 bool operator !=(const Waypoint &one, const Waypoint &two)
 {
     return !(one == two);
+}
+
+QDataStream &operator <<(QDataStream &stream, const std::string &type)
+{
+    stream << QString::fromStdString(type);
+    return stream;
+}
+
+QDataStream &operator >>(QDataStream &stream, std::string &type)
+{
+    QString _type;
+    stream >> _type;
+    type = _type.toStdString();
+    return stream;
 }
 
 }

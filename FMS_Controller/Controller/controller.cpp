@@ -124,7 +124,10 @@ bool Controller::decodeRequest()
     case cmdID::GET_PLAN:                   db.getPlan();               break;
     case cmdID::SAVE_PLAN:                  db.savePlan();              break;
     case cmdID::DELETE_PLAN:                db.deletePlan();            break;
-    case cmdID::GET_WAYPOINT:               db.getWaypoint();           break;
+    case cmdID::INVERT_PLAN:                db.invertPlan();            break;
+    case cmdID::GET_WAYPOINT_BY_ID:         db.getWaypointById();       break;
+    case cmdID::GET_WAYPOINT_BY_ICAO:       db.getWaypointByIcao();     break;
+    case cmdID::GET_NEAREST_WAYPOINTS:      db.getNearestWaypoints();   break;
     case cmdID::SAVE_WAYPOINT:              db.saveWaypoint();          break;
     case cmdID::DELETE_WAYPOINT:            db.deleteWaypoint();        break;
     case cmdID::GET_CATALOG_INFO_OF_PLANS:  db.getCatalogInfoOfPlans(); break;

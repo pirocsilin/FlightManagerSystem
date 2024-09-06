@@ -11,6 +11,10 @@ namespace fp {
 QDataStream &operator <<(QDataStream &stream, const CommandStatus &type);
 QDataStream &operator >>(QDataStream &stream, CommandStatus &type);
 
+// std::string
+QDataStream &operator <<(QDataStream &stream, const std::string &type);
+QDataStream &operator >>(QDataStream &stream, std::string &type);
+
 // WaypointType
 QDataStream &operator << (QDataStream &stream, const WaypointType &type);
 QDataStream &operator >> (QDataStream &stream, WaypointType &type);
@@ -78,7 +82,10 @@ enum cmdID
     GET_PLAN,                   //!< получить информацию о плане по id
     SAVE_PLAN,                  //!< сохранить план в базу
     DELETE_PLAN,                //!< удалить план из базы
-    GET_WAYPOINT,               //!< получить ППМ
+    INVERT_PLAN,                //!< инвертировать план
+    GET_WAYPOINT_BY_ID,         //!< получить ППМ по id
+    GET_WAYPOINT_BY_ICAO,       //!< получить список точек по ИКАО
+    GET_NEAREST_WAYPOINTS,      //!< получить ближайшие точки
     SAVE_WAYPOINT,              //!< сохранить ППМ в базу
     DELETE_WAYPOINT,            //!< удалить ППМ из базы
     GET_CATALOG_INFO_OF_PLANS,  //!< сведения о каждом плане полета в каталоге

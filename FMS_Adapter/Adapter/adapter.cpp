@@ -1,4 +1,4 @@
-﻿#include <QCoreApplication>
+﻿
 #include "adapter.h"
 
 AdapterFMS::AdapterFMS()
@@ -7,12 +7,33 @@ AdapterFMS::AdapterFMS()
     connector->moveToThread(&connectorThread);
     connect(&connectorThread, &QThread::started, connector.data(), &Connector::initConnection);
     connect(&connectorThread, &QThread::finished, connector.data(), &Connector::deleteLater);
+    connectorThread.setObjectName("Connector");
     connectorThread.start();
 
-    qRegisterMetaType<Waypoint>("Waypoint");
-    qRegisterMetaType<FlightPlan>("FlightPlan");
-    qRegisterMetaType<uint32_t>("uint32_t");
-    qRegisterMetaType<QByteArray*>("QByteArray*");
+    activePlanManager = QSharedPointer<ActivePlanManager>(new ActivePlanManager);
+    activePlanManager->moveToThread(&activePlanManagerThread);
+    connect(&activePlanManagerThread, &QThread::finished, activePlanManager.data(), &ActivePlanManager::deleteLater);
+    activePlanManagerThread.setObjectName("ActivePlanManager");
+    activePlanManagerThread.start();
+
+    qRegisterMetaType<std::string>  ("std::string");
+    qRegisterMetaType<uint32_t>     ("uint32_t");
+    qRegisterMetaType<bool>         ("bool");
+    qRegisterMetaType<Waypoint>     ("Waypoint");
+    qRegisterMetaType<FlightPlan>   ("FlightPlan");
+    qRegisterMetaType<NavDataFms>   ("NavDataFms");
+    qRegisterMetaType<QByteArray*>  ("QByteArray*");
+    //
+    qRegisterMetaType<DeviceFlightData>     ("DeviceFlightData");
+    qRegisterMetaType<std::vector<Waypoint>>("std::vector<Waypoint>");
+    qRegisterMetaType<CommandStatus>        ("CommandStatus");
+    qRegisterMetaType<ActivePlanInfo>       ("ActivePlanInfo");
+    qRegisterMetaType<ActivePlanInfoPair>   ("ActivePlanInfoPair");
+    qRegisterMetaType<FlightPlanPair>       ("FlightPlanPair");
+    qRegisterMetaType<FlightPlanInfoPair>   ("FlightPlanInfoPair");
+    //
+    qRegisterMetaType<FlightPlanRouteInfoPair>  ("FlightPlanRouteInfoPair");
+    qRegisterMetaType<WaypointVectorPair>       ("WaypointVectorPair");
 }
 
 template<typename... Args>
@@ -35,10 +56,10 @@ bool AdapterFMS::createRequestAndSend(cmdID id, Args... params)
     int countAttempt{3};
     while(countAttempt--)
     {
-        awaiteReceivingData.lock();
-        QMetaObject::invokeMethod(connector.data(), "sendDataAndAwaite", Q_ARG(QByteArray*, &outputData));
-        connector->waitCondition.wait(&awaiteReceivingData);
-        awaiteReceivingData.unlock();
+        QMetaObject::invokeMethod(connector.data(),
+                                  "sendDataAndAwaite",
+                                  Qt::BlockingQueuedConnection,
+                                  Q_ARG(QByteArray*, &outputData));
 
         HeaderData receivHdr{};
         getHdrFromResponse(connector->inputData, receivHdr);
@@ -57,7 +78,7 @@ bool AdapterFMS::createRequestAndSend(cmdID id, Args... params)
     return answer;
 }
 
-std::pair<CommandStatus, FlightPlan> AdapterFMS::getPlan(uint32_t id)
+FlightPlanPair AdapterFMS::getPlan(uint32_t id)
 {
     if(!connector->isTcpConnected)
         return std::make_pair(CommandStatus::NO_CONNECTION, FlightPlan());
@@ -99,6 +120,68 @@ CommandStatus AdapterFMS::deletePlan(uint32_t id)
         }
 }
 
+CommandStatus AdapterFMS::invertPlan(uint32_t id)
+{
+    if(!connector->isTcpConnected)
+        return CommandStatus::NO_CONNECTION;
+    else
+        if(!createRequestAndSend(cmdID::INVERT_PLAN, id))
+            return CommandStatus::ERROR_DATABASE;
+    else{
+            CommandStatus status;
+            getDataFromResponse(connector->inputData, status);
+            return status;
+        }
+}
+
+std::pair<CommandStatus, std::vector<Waypoint> > AdapterFMS::getNearestWaypoints(float dist)
+{
+    if(!connector->isTcpConnected)
+        return std::make_pair(CommandStatus::NO_CONNECTION, std::vector<Waypoint>());
+
+    float curLatitude{}, curLongitude{};
+    QMetaObject::invokeMethod(activePlanManager.data(),
+                              "getCurrrentPosision",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(float&, curLatitude),
+                              Q_ARG(float&, curLongitude));
+
+    if(std::isnan(curLatitude) || std::isnan(curLongitude))
+        return std::make_pair(CommandStatus::INVALID, std::vector<Waypoint>());
+
+    if(!createRequestAndSend(cmdID::GET_NEAREST_WAYPOINTS, curLatitude, curLongitude, dist))
+        return std::make_pair(CommandStatus::ERROR_DATABASE, std::vector<Waypoint>());
+    else
+    {
+        std::vector<Waypoint> points{};
+        getDataFromResponse(connector->inputData, points);
+        return std::make_pair(CommandStatus::OK, points);
+    }
+}
+
+std::pair<CommandStatus, std::vector<Waypoint> > AdapterFMS::getWaypointByIcao(std::string icao)
+{
+    if(!connector->isTcpConnected)
+        return std::make_pair(CommandStatus::NO_CONNECTION, std::vector<Waypoint>());
+    else
+        if(!createRequestAndSend(cmdID::GET_WAYPOINT_BY_ICAO, icao))
+            return std::make_pair(CommandStatus::ERROR_DATABASE, std::vector<Waypoint>());
+    else
+        {
+            std::vector<Waypoint> points{};
+            getDataFromResponse(connector->inputData, points);
+            if(points.size() > 1)
+            {
+                QMetaObject::invokeMethod(activePlanManager.data(),
+                                          "sortWaypointByDistance",
+                                          Qt::BlockingQueuedConnection,
+                                          Q_ARG(std::vector<Waypoint>, points));
+
+            }
+            return std::make_pair(CommandStatus::OK, points);
+        }
+}
+
 std::pair<CommandStatus, std::vector<FlightPlanInfo> > AdapterFMS::getCatalogInfoOfPlans()
 {
     if(!connector->isTcpConnected)
@@ -113,7 +196,7 @@ std::pair<CommandStatus, std::vector<FlightPlanInfo> > AdapterFMS::getCatalogInf
         }
 }
 
-std::pair<CommandStatus, FlightPlanRouteInfo> AdapterFMS::getPlanRouteInfo(uint32_t id)
+FlightPlanRouteInfoPair AdapterFMS::getPlanRouteInfo(uint32_t id)
 {
     if(!connector->isTcpConnected)
         return std::make_pair(CommandStatus::NO_CONNECTION, FlightPlanRouteInfo());
@@ -128,12 +211,12 @@ std::pair<CommandStatus, FlightPlanRouteInfo> AdapterFMS::getPlanRouteInfo(uint3
         }
 }
 
-std::pair<CommandStatus, Waypoint> AdapterFMS::getWaypoint(uint32_t id)
+std::pair<CommandStatus, Waypoint> AdapterFMS::getWaypointById(uint32_t id)
 {
     if(!connector->isTcpConnected)
         return std::make_pair(CommandStatus::NO_CONNECTION, Waypoint());
     else
-        if(!createRequestAndSend(cmdID::GET_WAYPOINT, id))
+        if(!createRequestAndSend(cmdID::GET_WAYPOINT_BY_ID, id))
             return std::make_pair(CommandStatus::ERROR_DATABASE, Waypoint());
     else
         {
@@ -173,61 +256,44 @@ CommandStatus AdapterFMS::deleteWaypoint(uint32_t id)
         }
 }
 
-// synch
-NavDataFms& AdapterFMS::setDeviceFlightData(const DeviceFlightData &data)
+CommandStatus AdapterFMS::activatePlan(uint32_t planId)
 {
-    sharedDataCtrl.lock();
-    calculatPlan.setNavData(data);
-    sharedDataCtrl.unlock();
-
-    return calculatPlan.navDataFms;
-}
-
-// asynch
-std::pair<CommandStatus, FlightPlan> AdapterFMS::activatePlan(uint32_t planId)
-{
-    std::pair<CommandStatus, FlightPlan> res = getPlan(planId);
+    FlightPlanPair res = getPlan(planId);
     if(res.first != CommandStatus::OK)
-        return std::make_pair(res.first, FlightPlan());
+        return res.first;
 
     if(res.second.waypoints.empty())
-        return std::make_pair(CommandStatus::INVALID, FlightPlan());
+        return CommandStatus::INVALID;
 
-    sharedDataCtrl.lock();
-    calculatPlan.setRoute(res.second);
-    activePlanIsSet = true;
-    sharedDataCtrl.unlock();
+    QMetaObject::invokeMethod(activePlanManager.data(),
+                              "activatePlan",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(FlightPlan&, res.second));
 
-    return std::make_pair(CommandStatus::OK, res.second);
+    return CommandStatus::OK;
 }
 
-// synch
-std::pair<fp::CommandStatus, fp::ActivePlanInfo> AdapterFMS::getActivePlanInfo()
+void AdapterFMS::setDeviceFlightData(const DeviceFlightData &data)
 {
-    ActivePlanInfo activePlanInfo{};
-    CommandStatus statusCommand {CommandStatus::INVALID};
-
-    sharedDataCtrl.lock();
-    if(activePlanIsSet)
-    {
-        activePlanInfo = calculatPlan.getActivePlanInfo();
-        statusCommand = CommandStatus::OK;
-    }
-    sharedDataCtrl.unlock();
-
-    return std::make_pair(statusCommand, activePlanInfo);
+    QMetaObject::invokeMethod(activePlanManager.data(),
+                              "setDeviceFlightData",
+                              Qt::QueuedConnection,
+                              Q_ARG(DeviceFlightData, data));
 }
 
-// synch
-bool AdapterFMS::selectNextPoint(bool direction)
+void AdapterFMS::getActivePlanInfo()
 {
-    sharedDataCtrl.lock();
-    bool status {activePlanIsSet};
-    if(status)
-        calculatPlan.selectNextPoint(direction);
-    sharedDataCtrl.unlock();
+    QMetaObject::invokeMethod(activePlanManager.data(),
+                              "getActivePlanInfo",
+                              Qt::QueuedConnection);
+}
 
-    return status;
+void AdapterFMS::selectNextPoint(bool direction)
+{
+    QMetaObject::invokeMethod(activePlanManager.data(),
+                              "selectNextPoint",
+                              Qt::QueuedConnection,
+                              Q_ARG(bool, direction));
 }
 
 void AdapterFMS::addWaypointToEditPlan(uint32_t position, Waypoint &point)

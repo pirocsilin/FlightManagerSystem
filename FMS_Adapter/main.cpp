@@ -14,14 +14,28 @@ int main(int argc, char *argv[])
     Controller controller;
     QThread::msleep(20);
 
+    qDebug() << __PRETTY_FUNCTION__ << "start main";
     testAnyMethods(controller);
+    qDebug() << __PRETTY_FUNCTION__ << "end main";
 
     return a.exec();
 }
 
+void testAnyMethods(Controller &controller)
+{
+    QObject::connect(&controller, &Controller::signalGetCatalogInfoOfPLans, [&](const FlightPlanInfoPair &info){printCatalogInfoOfPlans(info);});
+    QObject::connect(&controller, &Controller::signalGetPlan, [](const FlightPlanPair &info){printPlanInfo(info);});
+    QObject::connect(&controller, &Controller::signalGetPlanRouteInfo, [](const FlightPlanRouteInfoPair &info){printFlightPlanRouteInfo(info);});
+    QObject::connect(&controller, &Controller::signalActivatePlan, [](const CommandStatus &info){printCommandStatus(info);});
+    QObject::connect(controller.adapterPrt()->actPlanMngrPtr(), &ActivePlanManager::signalGetActivePlanInfo, [](const ActivePlanInfoPair &info){printActivePlanInfo(info);});
+    QObject::connect(&controller, &Controller::signalGetNearestWaypoints, [](const WaypointVectorPair &info){printWaypointVectorInfo(info);});
+
+    controller.getNearestWaypoints(10000);
+}
+
 void testSelectNextPoint()
 {
-    ManagerCalculationPlan mngr;
+    ActivePlanManager mngr;
     const double EARTH_RADIUS {6371000.0};
 
     Controller controller;
@@ -69,7 +83,8 @@ void testSelectNextPoint()
                                               qDegreesToRadians(targetLon),
                                               &dist);
 
-        NavDataFms navData = controller.setDeviceFlightData(DeviceFlightData{curLat+i, curLon+i, 32, 22});
+        NavDataFms navData{};
+        controller.setDeviceFlightData(DeviceFlightData{curLat+i, curLon+i, 32, 22});
 
         qDebug() << QString("[%1] lat: %2, log: %3 -> target: %4, %5 | dist: %6").arg(idx).arg(curLat+i).arg(curLon+i).arg(targetLat).arg(targetLon).arg(dist*EARTH_RADIUS);
 
@@ -78,34 +93,11 @@ void testSelectNextPoint()
         //controller.addWaypointToActivePlan(1, 600);
         QThread::msleep(20);
 
-//        std::pair<CommandStatus, ActivePlanInfo> plan = controller.getActivePlanInfo();
+//        ActivePlanInfoPair plan = controller.getActivePlanInfo();
 //        printActivePlanInfo(plan);
 
         getchar();
     }
-}
-
-void testAnyMethods(Controller &controller)
-{
-    Waypoint p1{-1, "GPT" , "RUS", (fp::WaypointType)2, 55, 66, 900, 150, 5};
-
-    //controller.saveWaypoint(p1);
-    controller.deleteWaypoint(34);
-
-
-    //    controller.getPlan(1);
-    //    controller.getCatalogInfoOfPlans();
-    //    controller.getPlanRouteInfo(9);
-    //    controller.getWaypoint(16);
-    //    controller.getWaypoint(15);
-    //    controller.getWaypoint(14);
-    //    controller.getWaypoint(13);
-
-    //    adapter.getCatalogInfoOfPlans();
-    //    adapter.getPlanRouteInfo(3);
-    //    adapter.getWaypoint(16);
-    //    adapter.activatePlan(10);
-    //    adapter.getActivePlanInfo();
 }
 
 # if 0

@@ -7,7 +7,7 @@
 #include <QHostAddress>
 #include <QDataStream>
 #include <QEventLoop>
-#include <QWaitCondition>
+//#include <QWaitCondition>
 
 class Connector : public QObject
 {
@@ -18,7 +18,7 @@ public:
     Connector() = default;
     ~Connector();
 
-    QWaitCondition waitCondition;
+    //QWaitCondition waitCondition;
     bool isTcpConnected {false};
     QByteArray inputData;
 

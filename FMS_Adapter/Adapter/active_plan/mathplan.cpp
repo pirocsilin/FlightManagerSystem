@@ -1,17 +1,21 @@
 
 #include <cmath>
 #include <qmath.h>
+#include <QThread>
+#include <QPair>
 #include "mathplan.h"
 
 #define TWO_PI (2.0*M_PI)  //!< Число 2*Пи
 
 
-ManagerCalculationPlan::ManagerCalculationPlan()
+ActivePlanManager::ActivePlanManager()
 {
     resetRoute();
+    currentPosition.first  = std::numeric_limits<float>::quiet_NaN();
+    currentPosition.second = std::numeric_limits<float>::quiet_NaN();
 }
-#include <QPair>
-void ManagerCalculationPlan::setRoute(FlightPlan &plan, uint32_t activePoint)
+
+void ActivePlanManager::setRoute(FlightPlan &plan, uint32_t activePoint)
 {
     // сбрасываем настройки ведения по маршруту
     resetRoute();
@@ -20,11 +24,11 @@ void ManagerCalculationPlan::setRoute(FlightPlan &plan, uint32_t activePoint)
     activePlan = plan;
 
     // заполняем структуру ActivePlanInfo
-    activePlanInfo.id   = plan.id;
-    activePlanInfo.name = plan.name;
-    activePlanInfo.activeWaypoint = plan.waypoints[activePoint];
+    activePlanInfo.id   = activePlan.id;
+    activePlanInfo.name = activePlan.name;
+    activePlanInfo.activeWaypoint = activePlan.waypoints[activePoint];
 
-    std::vector<Waypoint> &vec = plan.waypoints;
+    std::vector<Waypoint> &vec = activePlan.waypoints;
     for(int i{}; i<vec.size(); i++)
     {
         WaypointRouteInfo pointInfo{};
@@ -51,8 +55,8 @@ void ManagerCalculationPlan::setRoute(FlightPlan &plan, uint32_t activePoint)
     }
 
     // заполняем структуру ActivePlanGuide
-    fpg.name = QString(plan.name.c_str());
-    for(auto &point : plan.waypoints)
+    fpg.name = QString(activePlan.name.c_str());
+    for(auto &point : activePlan.waypoints)
     {
         ActivePlanGuide::PointParams newPoint{};
         newPoint.latitude  = qDegreesToRadians(point.latitude);
@@ -64,7 +68,7 @@ void ManagerCalculationPlan::setRoute(FlightPlan &plan, uint32_t activePoint)
     }
 }
 
-void ManagerCalculationPlan::resetRoute()
+void ActivePlanManager::resetRoute()
 {
     //! сбрасываем настройки ведения по маршруту
     activePlanInfo     = {};
@@ -73,9 +77,32 @@ void ManagerCalculationPlan::resetRoute()
     fpg                = {};
 }
 
-void ManagerCalculationPlan::setNavData(const fp::DeviceFlightData &data)
+void ActivePlanManager::getActivePlanInfo()
+{
+    CommandStatus statusCmd = activePlanIsSet ? CommandStatus::OK :
+                                                CommandStatus::INVALID;
+    auto result = std::make_pair(statusCmd, activePlanInfo);
+
+    emit signalGetActivePlanInfo(result);
+}
+
+void ActivePlanManager::getActivePlanInfo(std::pair<CommandStatus, ActivePlanInfo> &data)
+{
+    CommandStatus statusCmd = activePlanIsSet ? CommandStatus::OK :
+                                                CommandStatus::INVALID;
+    data = std::make_pair(statusCmd, activePlanInfo);
+}
+
+void ActivePlanManager::activatePlan(FlightPlan &plan)
+{
+    setRoute(plan);
+    activePlanIsSet = true;
+}
+
+void ActivePlanManager::setDeviceFlightData(const fp::DeviceFlightData &data)
 {
     navDataFms = {};
+    setCurrentPosition(data.latitude, data.longitude);
 
     if(std::isnan(data.longitude) || std::isnan(data.latitude) ||
             std::isnan(data.speedVx) || std::isnan(data.speedVz))
@@ -126,37 +153,41 @@ void ManagerCalculationPlan::setNavData(const fp::DeviceFlightData &data)
         if(fpg.distanceToNextPPM <= fpg.switchPointDistance)
             selectNextPoint(true);
     }
+
+    emit signalNavDataFms(navDataFms);
 }
 
-void ManagerCalculationPlan::selectNextPoint(bool direction)
+void ActivePlanManager::selectNextPoint(bool direction)
 {
-    uint32_t curIndex = fpg.indexCurrentPoint;
-
-    if(fpg.selectNextPoint(direction))
+    if(activePlanIsSet)
     {
-        activePlanInfo.waypoints[curIndex].isActive = false;
-        activePlanInfo.waypoints[fpg.indexCurrentPoint].isActive = true;
-        activePlanInfo.activeWaypoint = activePlan.waypoints[fpg.indexCurrentPoint];
+        uint32_t curIndex = fpg.indexCurrentPoint;
+        if(fpg.selectNextPoint(direction))
+        {
+            activePlanInfo.waypoints[curIndex].isActive = false;
+            activePlanInfo.waypoints[fpg.indexCurrentPoint].isActive = true;
+            activePlanInfo.activeWaypoint = activePlan.waypoints[fpg.indexCurrentPoint];
+        }
     }
 }
 
-FlightPlan &ManagerCalculationPlan::getEditActivePlan()
+FlightPlan &ActivePlanManager::getEditActivePlan()
 {
     editActivePlan = activePlan;
     return editActivePlan;
 }
 
-void ManagerCalculationPlan::setEditActivePlan()
+void ActivePlanManager::setEditActivePlan()
 {
     activePlan = editActivePlan;
 }
 
-uint32_t ManagerCalculationPlan::getIndexActivePoint()
+uint32_t ActivePlanManager::getIndexActivePoint()
 {
     return fpg.indexCurrentPoint;
 }
 
-void ManagerCalculationPlan::addWaypointToActivePlan(uint32_t position, Waypoint &point)
+void ActivePlanManager::addWaypointToActivePlan(uint32_t position, Waypoint &point)
 {
     if(position < 0 || position >= editActivePlan.waypoints.size())
         return;
@@ -180,7 +211,42 @@ void ManagerCalculationPlan::addWaypointToActivePlan(uint32_t position, Waypoint
         selectNextPoint(true);
 }
 
-bool ManagerCalculationPlan::calcActivePlan(float latitudeCurPosition, float longitudeCurPosition, float Vx, float Vz)
+void ActivePlanManager::setCurrentPosition(float latitude, float longitude)
+{
+    currentPosition.first = latitude;
+    currentPosition.second = longitude;
+}
+
+void ActivePlanManager::getCurrrentPosision(float &latitude, float &longitude)
+{
+    latitude  = currentPosition.first;
+    longitude = currentPosition.second;
+}
+
+void ActivePlanManager::sortWaypointByDistance(std::vector<Waypoint> &vector)
+{
+    float latitudeCurPosition {},
+          longitudeCurPosition{},
+          distanceToOne {},
+          distanceToTwo {};
+
+    getCurrrentPosision(latitudeCurPosition, longitudeCurPosition);
+    if(!std::isnan(latitudeCurPosition) && !std::isnan(longitudeCurPosition))
+    {
+        std::sort(vector.begin(), vector.end(), [&](Waypoint &one, Waypoint &two){
+
+            calcDistAndTrackBetweenWaypoints(latitudeCurPosition, longitudeCurPosition,
+                                             one.latitude, one.longitude, &distanceToOne);
+
+            calcDistAndTrackBetweenWaypoints(latitudeCurPosition, longitudeCurPosition,
+                                             two.latitude, two.longitude, &distanceToTwo);
+
+            return distanceToOne < distanceToTwo;
+        });
+    }
+}
+
+bool ActivePlanManager::calcActivePlan(float latitudeCurPosition, float longitudeCurPosition, float Vx, float Vz)
 {
     if(fpg.indexCurrentPoint >= static_cast<uint32_t>(fpg.points.size()))
         return false;
@@ -238,7 +304,7 @@ bool ManagerCalculationPlan::calcActivePlan(float latitudeCurPosition, float lon
 }
 
 #if 0
-bool ManagerCalculationPlan::calcActivePlan(float latitudeCurPosition, float longitudeCurPosition,
+bool ActivePlanManager::calcActivePlan(float latitudeCurPosition, float longitudeCurPosition,
                                              float Vx, float Vz)
 {
     if(routeGuide.indexCurrentPoint >= static_cast<uint32_t>(activePlanGuide.points.size()))
@@ -400,7 +466,7 @@ bool ManagerCalculationPlan::calcActivePlan(float latitudeCurPosition, float lon
 }
 #endif
 
-void ManagerCalculationPlan::calcWaypointFromDistAndTrack(float B0, float L0, float rng, float az, float *B, float *L)
+void ActivePlanManager::calcWaypointFromDistAndTrack(float B0, float L0, float rng, float az, float *B, float *L)
 {
     if(B0 > M_PI_2 - 1e-8)
         az = M_PI;
@@ -418,7 +484,7 @@ void ManagerCalculationPlan::calcWaypointFromDistAndTrack(float B0, float L0, fl
         *L = L0 + atan2(sin_rng*sin(az), cos_phi0*cos_rng - sin_phi0*sin_rng*cos_az);
 }
 
-void ManagerCalculationPlan::calcDistAndTrackBetweenWaypoints(float b1, float l1, float b2, float l2,
+void ActivePlanManager::calcDistAndTrackBetweenWaypoints(float b1, float l1, float b2, float l2,
                                                               float *r, float *az1, float *az2)
 {
     float sinb1 = sin(b1);
@@ -450,7 +516,7 @@ void ManagerCalculationPlan::calcDistAndTrackBetweenWaypoints(float b1, float l1
     }
 }
 
-float ManagerCalculationPlan::getMeanSpeed(float speed)
+float ActivePlanManager::getMeanSpeed(float speed)
 {
     speed = (speed < fpg.Vnom) ? fpg.Vnom : speed;
     fpg.Vbuf.enqueue(speed);
@@ -464,7 +530,7 @@ float ManagerCalculationPlan::getMeanSpeed(float speed)
     return ret /= fpg.Vbuf.size();
 }
 
-float ManagerCalculationPlan::bound_pi(float val, float bnd)
+float ActivePlanManager::bound_pi(float val, float bnd)
 {
     float two_bnd = 2*bnd;
     while (val > bnd)
@@ -476,7 +542,7 @@ float ManagerCalculationPlan::bound_pi(float val, float bnd)
     return val;
 }
 
-float ManagerCalculationPlan::bound_2pi(float val, float bnd)
+float ActivePlanManager::bound_2pi(float val, float bnd)
 {
     while (val > bnd)
         val -= bnd;
@@ -487,7 +553,7 @@ float ManagerCalculationPlan::bound_2pi(float val, float bnd)
     return val;
 }
 
-void ManagerCalculationPlan::trySafeOldActivePoint()
+void ActivePlanManager::trySafeOldActivePoint()
 {
     bool pointsIsIdentity {true};
     int pos {};

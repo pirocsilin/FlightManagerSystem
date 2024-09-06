@@ -105,46 +105,44 @@ bool DBconnector::checkExistsObject()
     return true;
 }
 
-bool DBconnector::getPlanfromDB(int id, FlightPlan &plan)
+bool DBconnector::getPlanfromDB(FlightPlan &plan)
 {
-    query = QString("SELECT id_flight_plan FROM flight_plans "
-                    "WHERE id_flight_plan = %1;").arg(id);
-
-    if(!executeQuery(query) || !checkExistsObject())
-        return false;
-
-    rec = DBquery.record();
-    DBquery.next();
-
-    plan.id  = DBquery.value(rec.indexOf("id_flight_plan")).toInt();
-
-    query = QString("SELECT id_waypoint, icao, latitude, longitude, altitude, region, type, radio_freq, runway_id FROM fpl_points "
-                    "INNER JOIN waypoints ON id_waypoint = id "
-                    "INNER JOIN flight_plans USING(id_flight_plan) "
-                    "WHERE id_flight_plan = %1 "
-                    "ORDER BY position_point ASC;").arg(id);
+    query = QString("SELECT id_flight_plan FROM flight_plans WHERE id_flight_plan IN "
+                    "(SELECT DISTINCT id_flight_plan FROM fpl_points) "
+                    "AND id_flight_plan=%1;").arg(plan.id);
 
     if(!executeQuery(query))
-            return false;
+        return false;
 
-    rec = DBquery.record();
-
-    Waypoint point;
-    while(DBquery.next())
+    if(DBquery.next())
     {
-        point.id           = DBquery.value(rec.indexOf("id_waypoint")).toInt();
-        point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
-        point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
-        point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
-        point.altitude     = DBquery.value(rec.indexOf("altitude")).toInt();
-        point.region       = DBquery.value(rec.indexOf("region")).toString().toStdString();
-        point.type         = static_cast<WaypointType>(DBquery.value(rec.indexOf("type")).toInt());
-        point.radioFrequency  = DBquery.value(rec.indexOf("radio_freq")).toInt();
-        point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
+        plan.id = DBquery.value(0).toInt();
+        query = QString("SELECT id_waypoint, icao, latitude, longitude, altitude, region, type, radio_freq, runway_id FROM fpl_points "
+                        "INNER JOIN waypoints ON id_waypoint = id "
+                        "INNER JOIN flight_plans USING(id_flight_plan) "
+                        "WHERE id_flight_plan = %1 "
+                        "ORDER BY position_point ASC;").arg(plan.id);
+        if(!executeQuery(query))
+                return false;
 
-        plan.waypoints.push_back(point);
+        rec = DBquery.record();
+
+        Waypoint point{};
+        while(DBquery.next())
+        {
+            point.id           = DBquery.value(rec.indexOf("id_waypoint")).toInt();
+            point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
+            point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
+            point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
+            point.altitude     = DBquery.value(rec.indexOf("altitude")).toInt();
+            point.region       = DBquery.value(rec.indexOf("region")).toString().toStdString();
+            point.type         = static_cast<WaypointType>(DBquery.value(rec.indexOf("type")).toInt());
+            point.radioFrequency  = DBquery.value(rec.indexOf("radio_freq")).toInt();
+            point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
+
+            plan.waypoints.push_back(point);
+        }
     }
-
     createNameForPlan(plan);
 
     return true;
@@ -153,11 +151,9 @@ bool DBconnector::getPlanfromDB(int id, FlightPlan &plan)
 void DBconnector::getPlan()
 {
     FlightPlan plan{};
-    int id;
+    *inputData >> plan.id;
 
-    *inputData >> id;
-
-    if(!getPlanfromDB(id, plan))
+    if(!getPlanfromDB(plan))
         return;
 
     *outData << *hdr << plan;
@@ -283,6 +279,49 @@ bool DBconnector::recordWaypointIntoBase(Waypoint &point, bool newPoint)
     return true;
 }
 
+void DBconnector::invertPlan()
+{
+    uint32_t idFlightPlan;
+    *inputData >> idFlightPlan;
+
+    query = QString("SELECT id_waypoint AS idPoint FROM fpl_points "
+                    "WHERE id_flight_plan=%1 ORDER BY position_point ASC;").arg(idFlightPlan);
+    if(!executeQuery())
+        return;
+
+    uint32_t idPoint;
+    std::vector<uint32_t> arr{};
+
+    rec = DBquery.record();
+    while(DBquery.next())
+    {
+        idPoint = DBquery.value(rec.indexOf("idPoint")).toInt();
+        arr.push_back(idPoint);
+    }
+
+    if(arr.size() > 1)
+    {
+        query = QString("DELETE FROM fpl_points WHERE id_flight_plan=%1;").arg(idFlightPlan);
+        if(!executeQuery())
+            return;
+
+        query = QString("INSERT INTO fpl_points(id_flight_plan, id_waypoint, position_point) VALUES");
+        QString insertPart("");
+
+        int pos{1};
+        for(auto it = arr.rbegin(); it != arr.rend(); it++)
+        {
+            insertPart += QString("(%1, %2, %3),").arg(idFlightPlan).arg(*it).arg(pos++);
+        }
+        query += insertPart.remove(insertPart.size()-1, 1) + ';';
+
+        if(!executeQuery())
+            return;
+    }
+
+    *outData << *hdr << CommandStatus::OK;
+}
+
 void DBconnector::savePlan()
 {
     FlightPlan plan;
@@ -374,7 +413,7 @@ bool DBconnector::insertWaypointIntoPlan(FlightPlan &plan)
     return true;
 }
 
-void DBconnector::getWaypoint()
+void DBconnector::getWaypointById()
 {
     int id;
     *inputData >> id;
@@ -399,6 +438,86 @@ void DBconnector::getWaypoint()
     point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
 
     *outData << *hdr << point;
+}
+
+void DBconnector::getWaypointByIcao()
+{
+    std::string identifier{};
+
+    *inputData >> identifier;
+
+    query = QString("SSELECT * FROM waypoints WHERE icao='%1' ORDER BY icao ASC;")
+                    .arg(QString::fromStdString(identifier));
+    if(!executeQuery())
+        return;
+
+    rec = DBquery.record();
+
+    std::vector<Waypoint> vector{};
+    Waypoint point{};
+
+    while(DBquery.next())
+    {
+        point.id           = DBquery.value(rec.indexOf("id")).toInt();
+        point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
+        point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
+        point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
+        point.altitude     = DBquery.value(rec.indexOf("altitude")).toInt();
+        point.region       = DBquery.value(rec.indexOf("region")).toString().toStdString();
+        point.type         = static_cast<WaypointType>(DBquery.value(rec.indexOf("type")).toInt());
+        point.radioFrequency  = DBquery.value(rec.indexOf("radio_freq")).toInt();
+        point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
+
+        vector.push_back(point);
+    }
+
+    *outData << *hdr << vector;
+}
+
+void DBconnector::getNearestWaypoints()
+{
+    short maxPointInRes  {20};   // размер результирующего массива
+    float latitude, longitude,   // deg
+                 maxDistance ;   // m
+
+    *inputData >> latitude >> longitude >> maxDistance;
+
+    query = QString("SELECT * FROM waypoints;");
+    if(!executeQuery())
+        return;
+
+    float dist;
+    Waypoint point;
+    std::vector<Waypoint> points{};
+    rec = DBquery.record();
+
+    while(DBquery.next())
+    {
+        point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
+        point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
+
+        calcDistAndTrackBetweenWaypoints(latitude, longitude, point.latitude, point.longitude, &dist);
+
+        if(dist * EARTH_RADIUS <= maxDistance)
+        {
+            point.id           = DBquery.value(rec.indexOf("id")).toInt();
+            point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
+            point.altitude     = DBquery.value(rec.indexOf("altitude")).toInt();
+            point.region       = DBquery.value(rec.indexOf("region")).toString().toStdString();
+            point.type         = static_cast<WaypointType>(DBquery.value(rec.indexOf("type")).toInt());
+            point.radioFrequency  = DBquery.value(rec.indexOf("radio_freq")).toInt();
+            point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
+
+            points.push_back(point);
+        }
+    }
+
+    sortWaypointByDistance(latitude, longitude, points);
+
+    if(points.size() > maxPointInRes)
+        points.erase(points.begin() + maxPointInRes, points.end());
+
+    *outData << *hdr << points;
 }
 
 std::string DBconnector::getNameForPlan(int id)
@@ -428,9 +547,9 @@ std::string DBconnector::getNameForPlan(int id)
 
 void DBconnector::getCatalogInfoOfPlans()
 {
-    query = QString("SELECT id_flight_plan FROM flight_plans");
-
-    if(!executeQuery(query) || !checkExistsObject())
+    query = QString("SELECT id_flight_plan FROM flight_plans WHERE id_flight_plan "
+                    "IN (SELECT DISTINCT id_flight_plan FROM fpl_points);");
+    if(!executeQuery(query))
         return;
 
     FlightPlanInfo planInfo{};
@@ -488,11 +607,9 @@ void DBconnector::getCatalogInfoOfPlans()
 void DBconnector::getPlanRouteInfo()
 {
     FlightPlan plan{};
-    int id;
+    *inputData >> plan.id;
 
-    *inputData >> id;
-
-    if(!getPlanfromDB(id, plan))
+    if(!getPlanfromDB(plan))
         return;
 
     WaypointRouteInfo wpRouteInfo{};
@@ -520,7 +637,7 @@ void DBconnector::getPlanRouteInfo()
                         &distance,
                         &bearing);
 
-            wpRouteInfo.distance = distance * EARTH_RADIUS / 1000;
+            wpRouteInfo.distance = distance * EARTH_RADIUS;
             wpRouteInfo.bearing = bearing * 180 / M_PI;
         }
         if(!i)
@@ -531,351 +648,3 @@ void DBconnector::getPlanRouteInfo()
 
     *outData << *hdr << planRouteInfo;
 }
-
-void DBconnector::invertPlanAndGet()
-{
-#ifdef none
-    FlightPlan plan;
-    int posInCatalog;
-
-    *inputData >> posInCatalog;
-
-    if(!getPlanfromDB(posInCatalog, plan))
-        return;
-
-    invertPlan(plan);
-
-    query = QString("DELETE FROM fpl_points WHERE id_flight_plan = %1;").arg(plan.id);
-    if(!executeQuery()) return;
-
-    query = QString("INSERT INTO fpl_points(id_flight_plan, id_waypoint, position_point) VALUES");
-    QString insertPart("");
-
-    int pos{1};
-    for(auto point : plan.waypoints)
-    {
-        insertPart += QString("(%1, %2, %3),").arg(plan.id).arg(point.id).arg(pos++);
-    }
-
-    query += insertPart.remove(insertPart.size()-1, 1) + ';';
-
-    if(pos > 1)
-        if(!executeQuery()) return;
-
-    createNameForPlan(plan);
-
-    query = QString("UPDATE flight_plans SET flight_plan_name = '%1' "
-                    "WHERE id_flight_plan = %2;").arg(QString::fromStdString(plan.name)).arg(plan.id);
-    if(!executeQuery()) return;
-
-    *outData << cmdID::INVERT_PLAN << plan;
-#endif
-}
-
-void DBconnector::addWaypointToEditPlan()
-{
-#ifdef none
-    FlightPlan plan;
-    int posInsert;
-    int idWaypoint;
-
-    *inputData >> posInsert >> idWaypoint;
-
-    if(!getPlanfromDB(editablePlan, plan, cmdID::ADD_WAYPOINT_TO_EDIT_PLAN))
-        return;
-
-    if(!(posInsert >= 0 && posInsert <= plan.size()))
-        DECLARE_ERROR(QString("ERROR: Index out of bound"));
-
-    query = QString("SELECT id, icao, latitude, longitude FROM waypoints "
-                    "WHERE id = %1;").arg(idWaypoint);
-    if(!executeQuery()) return;
-
-    rec = DBquery.record();
-
-    if(!checkExistsObject(cmdID::ADD_WAYPOINT_TO_EDIT_PLAN, Waypoint())) return;
-
-    WaypointPtr wPoint(new Waypoint());
-
-    wPoint->id           = DBquery.value(rec.indexOf("id")).toInt();
-    wPoint->icao         = DBquery.value(rec.indexOf("icao")).toString();
-    wPoint->latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
-    wPoint->longtitude   = DBquery.value(rec.indexOf("longitude")).toDouble();
-
-    if      (posInsert == plan.size()) plan.push_back(wPoint);
-    else    plan.insert(posInsert, wPoint);
-
-    addRecentWaypoint(wPoint);
-
-    // update plan in DB //
-
-    query = QString("DELETE FROM fpl_points WHERE id_flight_plan = %1;").arg(plan.idPlan);
-    if(!executeQuery()) return;
-
-    query = QString("INSERT INTO fpl_points(id_flight_plan, id_waypoint, position_point) VALUES");
-    QString insertPart("");
-
-    int pos{1};
-    for(auto wPoint : plan)
-    {
-        insertPart += QString("(%1, %2, %3),").arg(plan.idPlan).arg(wPoint->id).arg(pos++);
-    }
-
-    query += insertPart.remove(insertPart.size()-1, 1) + ';';
-
-    if(pos > 1)
-        if(!executeQuery()) return;
-
-    plan.createNameForPlan();
-
-    query = QString("UPDATE flight_plans SET flight_plan_name = '%1' "
-                    "WHERE id_flight_plan = %2;").arg(plan.Name).arg(plan.idPlan);
-    if(!executeQuery()) return;
-
-    *outData << cmdID::ADD_WAYPOINT_TO_EDIT_PLAN << plan;
-#endif
-}
-
-void DBconnector::delWaypointFromEditPlan()
-{
-#ifdef none
-    Plan plan;
-    int posRemove;
-
-    *inputData >> posRemove;
-
-    if(!getPlanfromDB(editablePlan, plan, cmdID::DEL_WAYPOINT_FROM_EDIT_PLAN))
-        return;
-
-    if(!(posRemove >= 0 && posRemove < plan.size()))
-         DECLARE_ERROR(QString("ERROR: Index out of bound"));
-
-    plan.remove(posRemove);
-
-    // update plan in DB //
-
-    query = QString("DELETE FROM fpl_points WHERE id_flight_plan = %1;").arg(plan.idPlan);
-    if(!executeQuery()) return;
-
-    query = QString("INSERT INTO fpl_points(id_flight_plan, id_waypoint, position_point) VALUES");
-    QString insertPart("");
-
-    int pos{1};
-    for(auto wPoint : plan)
-    {
-        insertPart += QString("(%1, %2, %3),").arg(plan.idPlan).arg(wPoint->id).arg(pos++);
-    }
-
-    query += insertPart.remove(insertPart.size()-1, 1) + ';';
-
-    if(pos > 1)
-        if(!executeQuery()) return;
-
-    plan.createNameForPlan();
-
-    query = QString("UPDATE flight_plans SET flight_plan_name = '%1' "
-                    "WHERE id_flight_plan = %2;").arg(plan.Name).arg(plan.idPlan);
-    if(!executeQuery()) return;
-
-    *outData << cmdID::DEL_WAYPOINT_FROM_EDIT_PLAN << plan;
-#endif
-}
-
-void DBconnector::deleteStoredPlan()
-{
-#ifdef none
-    int posInCatalog{-1};
-
-    *inputData >> posInCatalog;
-
-    posInCatalog = posInCatalog == -1 ? editablePlan : posInCatalog;
-
-    query = QString("DELETE FROM fpl_points WHERE id_flight_plan = "
-                    "(SELECT id_flight_plan FROM flight_plans WHERE "
-                    "position_list = %1);").arg(posInCatalog);
-    if(!executeQuery()) return;
-
-    query = QString("UPDATE flight_plans SET flight_plan_name = '______ / ______', "
-                    "state = NULL WHERE position_list = %1; ").arg(posInCatalog);
-    if(!executeQuery()) return;
-
-    query = QString("SELECT id_flight_plan, position_list, flight_plan_name FROM flight_plans "
-                    "WHERE position_list = %1;").arg(posInCatalog);
-    if(!executeQuery()) return;
-
-    rec = DBquery.record();
-
-    if(!checkExistsObject(cmdID::DELETE_STORED_PLAN, Plan())) return;
-
-    DBquery.seek(-1);
-    DBquery.next();
-
-    Plan plan;
-    plan.idPlan         = DBquery.value(rec.indexOf("id_flight_plan")).toInt();
-    plan.posInCatalog   = DBquery.value(rec.indexOf("position_list")).toInt();
-    plan.Name           = DBquery.value(rec.indexOf("flight_plan_name")).toString();
-
-        *outData << cmdID::DELETE_STORED_PLAN << plan;
-#endif
-}
-
-void DBconnector::setAndGetEditPlan()
-{
-
-#ifdef none
-    Plan plan;
-    int posInCatalog{-1};
-    editablePlan = -1;
-
-    *inputData >> posInCatalog;
-
-    if(posInCatalog == -1)
-    {
-        query = "SELECT position_list FROM flight_plans WHERE "
-                "flight_plan_name = '______ / ______' ORDER BY position_list ASC LIMIT 1;";
-        if(!executeQuery()) return;
-
-        rec = DBquery.record();
-
-        if(DBquery.next())
-        {
-            DBquery.seek(-1);
-            DBquery.next();
-            editablePlan = DBquery.value(rec.indexOf("position_list")).toInt();
-        }
-    }
-    else
-    {
-        editablePlan = posInCatalog;
-    }
-
-    if(!getPlanfromDB(editablePlan, plan, cmdID::SET_AND_GET_EDIT_PLAN))
-        return;
-    plan.createNameForPlan();
-
-    *outData << cmdID::SET_AND_GET_EDIT_PLAN << plan;
-#endif
-}
-
-bool DBconnector::updatePath(QDataStream *in)
-{
-#ifdef none
-    int idPlan;
-    *in >> idPlan;
-
-    query = QString("DELETE FROM fpl_points WHERE id_flight_plan = %1;").arg(idPlan);
-
-    if(!executeQuery()) { return false; }
-
-    QString pName; int pos{1};
-    while(!in->atEnd())
-    {
-        *in >> pName;
-        query = QString("INSERT INTO fpl_points(id_flight_plan, "
-                        "id_waypoint,position_point) SELECT %1, id, %3 FROM "
-                        "waypoints WHERE icao = '%2';").arg(idPlan).arg(pName).arg(pos++);
-
-        if(!executeQuery()) { return false; }
-    }
-#endif
-    return true;
-}
-
-void DBconnector::getNearestWaypoints()
-{
-#ifdef none
-    query = QString("SELECT id, icao, latitude, longitude, altitude, region, type, radio_freq, runway_id FROM waypoints;");
-    if(!executeQuery()) return;
-
-    double lat, lon;
-    float dist;
-    WaypointType type;
-
-    *inputData >> lat >> lon >> dist >> type;
-
-    rec = DBquery.record();
-
-    std::vector<Waypoint>vector;
-
-    while(DBquery.next())
-    {
-        Waypoint point;
-
-        point.id           = DBquery.value(rec.indexOf("id")).toInt();
-        point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
-        point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
-        point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
-        point.altitude     = DBquery.value(rec.indexOf("altitude")).toInt();
-        point.region       = DBquery.value(rec.indexOf("region")).toString().toStdString();
-        point.type         = static_cast<WaypointType>(DBquery.value(rec.indexOf("type")).toInt());
-        point.radioFrequency  = DBquery.value(rec.indexOf("radio_freq")).toInt();
-        point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
-
-        vector.push_back(point);
-
-    }
-    removeDistantPoint(vector, dist, type);
-    sortWaypointVector(vector);
-
-    *outData << cmdID::GET_NEAREST_WAYPOINTS << vector;
-#endif
-}
-
-void DBconnector::getWaypointByIdetifier()
-{
-#ifdef none
-    QString identifier;
-
-    *inputData >> identifier;
-
-    query = QString("SELECT * FROM waypoints "
-                    "WHERE icao LIKE '%1%' ORDER BY icao ASC;").arg(identifier);
-    if(!executeQuery()) return;
-
-    rec = DBquery.record();
-
-    std::vector<Waypoint> vector;
-    Waypoint point;
-
-    while(DBquery.next())
-    {
-        point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
-        point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
-        point.longitude   = DBquery.value(rec.indexOf("longitude")).toDouble();
-
-        vector.push_back(point);
-    }
-
-    *outData << cmdID::GET_WAYPOINT_BY_IDENTIFIER << vector;
-#endif
-}
-
-void DBconnector::findWaypoint()
-{
-#ifdef none
-    QString pointName;
-
-    *inputData >> pointName;
-
-    query = QString("SELECT id, icao, latitude, longitude FROM waypoints "
-                    "WHERE icao = '%1';").arg(pointName);
-
-    if(!executeQuery()) return;
-
-    rec = DBquery.record();
-
-    Waypoint point;
-    *outData << cmdID::GET_WAYPOINT_BY_NAME;
-
-    while(DBquery.next())
-    {
-        point.id           = DBquery.value(rec.indexOf("id")).toInt();
-        point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
-        point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
-        point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
-
-        *outData << point;
-    }
-#endif
-}
-

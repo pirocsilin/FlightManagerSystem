@@ -3,7 +3,6 @@
 
 #include <QPair>
 #include <QThread>
-#include <QMutex>
 #include <QWaitCondition>
 #include <QTcpSocket>
 #include <QTimer>
@@ -11,49 +10,38 @@
 #include <QEventLoop>
 #include <QHostAddress>
 #include <utility>
+#include <cmath>
 #include "common/structsflightplan.h"
 #include "active_plan/structs_data.h"
 #include "common/labsflightplan.h"
 #include "active_plan/mathplan.h"
 #include "connector.h"
 
-#define ASYNC_INVOKE(methodName, ...) \
-    if(QThread::currentThreadId() != selfThread) { \
-        QMetaObject::invokeMethod(this, #methodName, Qt::QueuedConnection, __VA_ARGS__); \
-        return; \
-    }
-
 using namespace fp;
 
 class AdapterFMS : public QObject
 {
-    Q_OBJECT 
+    Q_OBJECT
 
 private:
 
-    QMutex awaiteReceivingData;
-    QMutex sharedDataCtrl;
+    uint32_t uniqueCmd {10};                                //!< уникальный id запрса к FMS
 
-    uint32_t uniqueCmd {10};
-
-    QSharedPointer<Connector> connector;
+    QSharedPointer<Connector> connector;                    //!< коммуникация с FMS
     QThread connectorThread;
 
-    bool activePlanIsSet  {false};
-    bool beginEditPlan    {false};
-    ManagerCalculationPlan calculatPlan;    //!< манагер рассчета параметров активного плана
-    FlightPlan editablePlan;                //!< редактируемый план
+    QSharedPointer<ActivePlanManager> activePlanManager;    //!< манагер рассчета параметров активного плана
+    QThread activePlanManagerThread;
+
+    bool beginEditPlan {false};                             //!< признак редактирования плана полета
+    FlightPlan editablePlan;                                //!< редактируемый план полета
 
     template<typename... Args>
-    bool createRequestAndSend(cmdID id, Args... args);
-
-    void sendDataAndAwaite(QByteArray &data);
+    bool createRequestAndSend(cmdID id, Args... args);      //!< создание запроса к FMS
 
 public:
     AdapterFMS();
     ~AdapterFMS() = default;
-
-    bool awaiteProcess;
 
     // получение плана полета из базы данных по id
     std::pair<fp::CommandStatus, fp::FlightPlan> getPlan(uint32_t id);
@@ -64,8 +52,17 @@ public:
     // удалить план из базы
     fp::CommandStatus deletePlan(uint32_t);
 
+    // инвертировать план
+    fp::CommandStatus invertPlan(uint32_t id);
+
+    // получить ближайшие 20 точек не дальше чем dist [m]
+    std::pair<fp::CommandStatus, std::vector<Waypoint>> getNearestWaypoints(float dist);
+
+    // получить точки ППМ по ICAO
+    std::pair<fp::CommandStatus, std::vector<Waypoint>> getWaypointByIcao(std::string icao);
+
     // получить ППМ по id
-    std::pair<fp::CommandStatus, fp::Waypoint> getWaypoint(uint32_t idWaypoint);
+    std::pair<fp::CommandStatus, fp::Waypoint> getWaypointById(uint32_t idWaypoint);
 
     // сохранить ППМ в базе
     fp::CommandStatus saveWaypoint(Waypoint &point);
@@ -79,17 +76,20 @@ public:
     // получение информации о плане полета из БД для списка планов
     std::pair<fp::CommandStatus, fp::FlightPlanRouteInfo> getPlanRouteInfo(uint32_t id);
 
-    // рассчитать и вернуть навигационные параметры
-    fp::NavDataFms& setDeviceFlightData(const fp::DeviceFlightData& data);
+    // рассчитать и вернуть сигналом навигационные параметры NavDataFms
+    void setDeviceFlightData(const fp::DeviceFlightData& data);
 
     // активация плана полета по его идентификатору
-    std::pair<CommandStatus, FlightPlan> activatePlan(uint32_t planId);
+    CommandStatus activatePlan(uint32_t planId);
 
-    // получение сведения об активном плане
-    std::pair<fp::CommandStatus, fp::ActivePlanInfo> getActivePlanInfo();
+    // полученить сигналом сведения об активном плане ActivePlanInfo
+    void getActivePlanInfo();
 
-    // переключение на следующую и предыдущую ППМ (true - след, false - перд)
-    bool selectNextPoint(bool direction);
+    // полученить объектом сведения об активном плане ActivePlanInfo
+    void getActivePlanInfo(std::pair<fp::CommandStatus, fp::ActivePlanInfo> &);
+
+    // переключение на следующую или предыдущую ППМ (true - след, false - перд)
+    void selectNextPoint(bool direction);
 
     void addWaypointToEditPlan(uint32_t position, Waypoint &point); //!< вставить точку в редактируемый план
     void deleteWaypointFromEditPlan(uint32_t position);             //!< удалить точку из редактируемого плана
@@ -97,11 +97,10 @@ public:
     void setEditablePlan(FlightPlan &);     //!< установить редактируемый план
     FlightPlan& getEditablePlan();          //!< получить редактируемый план
 
-    /**
-     * @brief Активация режима Прямо На для точки в активном плане
-     * @param id идентификатор точки
-     */
-    void activateDirectToMode(uint32_t id);
+    ActivePlanManager* actPlanMngrPtr() { return activePlanManager.data(); }
+
+    // Активация режима Прямо На для точки в активном плане
+    // void activateDirectToMode(uint32_t id);
 
 };
 

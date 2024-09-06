@@ -11,15 +11,11 @@
 #include <QDataStream>
 #include <QByteArray>
 #include <QTcpSocket>
-
 #include "common/labsflightplan.h"
 #include "common/structsflightplan.h"
 #include "math/math_fms.h"
 
 using namespace fp;
-
-#define MAX_RECENT_POINTS   10
-#define MAX_NEAREST_POINTS  10
 
 class DBconnector : public QSqlDatabase
 {
@@ -35,49 +31,39 @@ private:
     QSqlQuery   DBquery;
     QSqlRecord  rec;
 
+    std::vector<Waypoint> recentWaypoints;      //!< Последние точки запрошенные из базы
+
     void initConnection();
     bool executeQuery();
-    bool executeQuery(QString &reqiest);            //!< выполнение запроса в базу данных
-    bool checkExistsObject();                       //!< проверка запроса на пустоту
-    std::string getNameForPlan(int id);             //!< сформировать имя для плана полета
-    bool getPlanfromDB(int id, FlightPlan &plan);   //!< получить план полета из базы данных
-
+    bool executeQuery(QString &reqiest);        //!< выполнение запроса в базу данных
+    bool checkExistsObject();                   //!< проверка запроса на пустоту
+    std::string getNameForPlan(int id);         //!< сформировать имя для плана полета
+    bool getPlanfromDB(FlightPlan &plan);       //!< получить план полета из базы данных
     //
-
-    bool addCommandForFMS_2(QByteArray *);
-    void writeCommandToFMS_2(QTcpSocket &);
+    bool addCommandForFMS_2     (QByteArray*);
+    void writeCommandToFMS_2    (QTcpSocket&);
+    bool insertWaypointIntoPlan (FlightPlan&);
+    bool recordWaypointIntoBase (Waypoint&, bool=false);
 
 public:
     DBconnector();
 
     QDataStream *inputData;
     QDataStream *outData;
-    HeaderData *hdr;
-
-    std::vector<Waypoint> recentWaypoints;  //!< Последние точки запрошенные из базы
-    int editablePlan{-1};                   //!< Редактируемый план
+    HeaderData  *hdr;
 
     void getPlan                ();
     void savePlan               ();
     void deletePlan             ();
-    void getWaypoint            ();
+    void getWaypointById        ();
+    void getWaypointByIcao      ();
     void saveWaypoint           ();
     void deleteWaypoint         ();
     void getCatalogInfoOfPlans  ();
     void getPlanRouteInfo       ();
     //
-    bool insertWaypointIntoPlan (FlightPlan &);
-    bool recordWaypointIntoBase (Waypoint&, bool=false);
-    //
-    void findWaypoint           ();
     void getNearestWaypoints    ();
-    void getWaypointByIdetifier ();
-    void invertPlanAndGet       ();
-    void addWaypointToEditPlan  ();
-    void delWaypointFromEditPlan();
-    void deleteStoredPlan       ();
-    void setAndGetEditPlan      ();
-    bool updatePath(QDataStream *);
+    void invertPlan             ();
 };
 
 #endif // DBCONNECTOR_H

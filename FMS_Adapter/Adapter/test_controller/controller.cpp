@@ -1,5 +1,10 @@
 ﻿#include "controller.h"
 
+#define ASYNC_INVOKE(methodName, ...)                                                      \
+    if(QThread::currentThreadId() != selfThread) {                                         \
+        QMetaObject::invokeMethod(this, #methodName, Qt::QueuedConnection, ##__VA_ARGS__); \
+        return;                                                                            \
+    }
 
 Controller::Controller()
 {
@@ -18,10 +23,9 @@ void Controller::getPlan(uint32_t id)
 {
     ASYNC_INVOKE(getPlan, Q_ARG(uint32_t, id))
 
-    std::pair<fp::CommandStatus, fp::FlightPlan> flightPlan = adapter.getPlan(id);
+    FlightPlanPair result = adapter.getPlan(id);
 
-    // emit ...
-    printPlanInfo(flightPlan);
+    emit signalGetPlan(result);
 }
 
 void Controller::savePlan(FlightPlan plan)
@@ -42,11 +46,29 @@ void Controller::deletePlan(uint32_t id)
     // emit ...
 }
 
-void Controller::getWaypoint(uint32_t id)
+void Controller::invertPlan(uint32_t id)
 {
-    ASYNC_INVOKE(getWaypoint, Q_ARG(uint32_t, id))
+    ASYNC_INVOKE(invertPlan, Q_ARG(uint32_t, id))
 
-    std::pair<fp::CommandStatus, fp::Waypoint> waypoint = adapter.getWaypoint(id);
+    CommandStatus status = adapter.invertPlan(id);
+
+    // emit ...
+}
+
+void Controller::getWaypointByIcao(std::string icao)
+{
+    ASYNC_INVOKE(getWaypointByIcao, Q_ARG(std::string, icao))
+
+    std::pair<fp::CommandStatus, std::vector<Waypoint>> res = adapter.getWaypointByIcao(icao);
+
+    // emit ...
+}
+
+void Controller::getWaypointById(uint32_t id)
+{
+    ASYNC_INVOKE(getWaypointById, Q_ARG(uint32_t, id))
+
+    std::pair<fp::CommandStatus, fp::Waypoint> waypoint = adapter.getWaypointById(id);
 
     // emit ...
     printWaypointInfo(waypoint);
@@ -66,7 +88,12 @@ void Controller::deleteWaypoint(uint32_t id)
     ASYNC_INVOKE(deleteWaypoint, Q_ARG(uint32_t, id))
 
     CommandStatus status{CommandStatus::INVALID};
-    std::pair<fp::CommandStatus, fp::ActivePlanInfo> res = adapter.getActivePlanInfo();
+    ActivePlanInfoPair res{};
+
+    QMetaObject::invokeMethod(adapter.actPlanMngrPtr(),
+                              "getActivePlanInfo",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(ActivePlanInfoPair, res));
 
     if(res.first == CommandStatus::OK)
     {
@@ -90,41 +117,29 @@ void Controller::deleteWaypoint(uint32_t id)
 
 void Controller::getCatalogInfoOfPlans()
 {
-    if(QThread::currentThreadId() != selfThread)
-    {
-        QMetaObject::invokeMethod(this, "getCatalogInfoOfPlans", Qt::QueuedConnection);
-        return;
-    }
+    ASYNC_INVOKE(getCatalogInfoOfPlans)
 
     std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> planInfo = adapter.getCatalogInfoOfPlans();
 
-    // emit ...
-    printCatalogInfoOfPlans(planInfo);
+    emit signalGetCatalogInfoOfPLans(planInfo);
 }
 
 void Controller::getPlanRouteInfo(uint32_t id)
 {
-    if(QThread::currentThreadId() != selfThread)
-    {
-        QMetaObject::invokeMethod(this, "getPlanRouteInfo", Qt::QueuedConnection, Q_ARG(uint32_t, id));
-        return;
-    }
+    ASYNC_INVOKE(getPlanRouteInfo, Q_ARG(uint32_t, id))
 
-    std::pair<CommandStatus, FlightPlanRouteInfo> flightPlanRouteInfo = adapter.getPlanRouteInfo(id);
+    FlightPlanRouteInfoPair flightPlanRouteInfo = adapter.getPlanRouteInfo(id);
 
-    // emit ...
-    printFlightPlanRouteInfo(flightPlanRouteInfo);
+    emit signalGetPlanRouteInfo(flightPlanRouteInfo);
 }
 
 void Controller::activatePlan(uint32_t id)
 {
     ASYNC_INVOKE(activatePlan, Q_ARG(uint32_t, id))
 
-    std::pair<CommandStatus, FlightPlan> res = adapter.activatePlan(id);
+    CommandStatus status = adapter.activatePlan(id);
 
-    // emit signalActivatePlan(res)
-
-    qDebug() << "Status: " << (int)res.first;
+    emit signalActivatePlan(status);
 }
 
 void Controller::startEditPlan(uint32_t id)
@@ -162,7 +177,7 @@ void Controller::endEditPlan(bool safe, bool activate)
 
         if(activate)
         {
-            std::pair<CommandStatus, FlightPlan> res = adapter.activatePlan(plan.id);   // i'm here
+            CommandStatus status = adapter.activatePlan(plan.id);   // i'm here
 
             // emit signalActivatePlan(res)
         }
@@ -170,11 +185,20 @@ void Controller::endEditPlan(bool safe, bool activate)
     //! else nothing
 }
 
+void Controller::getNearestWaypoints(float dist)
+{
+    ASYNC_INVOKE(getNearestWaypoints, Q_ARG(float, dist))
+
+    WaypointVectorPair result = adapter.getNearestWaypoints(dist);
+
+    emit signalGetNearestWaypoints(result);
+}
+
 void Controller::addWaypointToEditPlan(uint32_t pos, uint32_t id)
 {
     ASYNC_INVOKE(addWaypointToEditPlan, Q_ARG(uint32_t, pos), Q_ARG(uint32_t, id))
 
-    std::pair<fp::CommandStatus, fp::Waypoint> waypoint = adapter.getWaypoint(id);
+    std::pair<fp::CommandStatus, fp::Waypoint> waypoint = adapter.getWaypointById(id);
 
     if(waypoint.first == CommandStatus::OK)
     {
@@ -193,22 +217,19 @@ void Controller::deleteWaypointFromEditPlan(uint32_t pos)
     // emit signalRedrawScreen
 }
 
-// synch
-std::pair<CommandStatus, ActivePlanInfo> Controller::getActivePlanInfo()
+void Controller::getActivePlanInfo()
 {
-    return adapter.getActivePlanInfo();
+    adapter.getActivePlanInfo();
 }
 
-// synch
-NavDataFms& Controller::setDeviceFlightData(const DeviceFlightData &data)
+void Controller::setDeviceFlightData(const DeviceFlightData &data)
 {
-    return adapter.setDeviceFlightData(data);
+    adapter.setDeviceFlightData(data);
 }
 
-// synch
-bool Controller::selectNextPoint(bool direction)
+void Controller::selectNextPoint(bool direction)
 {
-    return adapter.selectNextPoint(direction);
+    adapter.selectNextPoint(direction);
 }
 
 

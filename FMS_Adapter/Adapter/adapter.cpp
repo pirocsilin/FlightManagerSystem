@@ -141,7 +141,7 @@ std::pair<CommandStatus, std::vector<Waypoint> > AdapterFMS::getNearestWaypoints
 
     float curLatitude{}, curLongitude{};
     QMetaObject::invokeMethod(activePlanManager.data(),
-                              "getCurrrentPosision",
+                              "getCurrrentPosition",
                               Qt::BlockingQueuedConnection,
                               Q_ARG(float&, curLatitude),
                               Q_ARG(float&, curLongitude));
@@ -159,7 +159,7 @@ std::pair<CommandStatus, std::vector<Waypoint> > AdapterFMS::getNearestWaypoints
     }
 }
 
-std::pair<CommandStatus, std::vector<Waypoint> > AdapterFMS::getWaypointByIcao(std::string icao)
+WaypointVectorPair AdapterFMS::getWaypointByIcao(std::string icao)
 {
     if(!connector->isTcpConnected)
         return std::make_pair(CommandStatus::NO_CONNECTION, std::vector<Waypoint>());
@@ -175,7 +175,7 @@ std::pair<CommandStatus, std::vector<Waypoint> > AdapterFMS::getWaypointByIcao(s
                 QMetaObject::invokeMethod(activePlanManager.data(),
                                           "sortWaypointByDistance",
                                           Qt::BlockingQueuedConnection,
-                                          Q_ARG(std::vector<Waypoint>, points));
+                                          Q_ARG(std::vector<Waypoint>&, points));
 
             }
             return std::make_pair(CommandStatus::OK, points);
@@ -335,19 +335,4 @@ FlightPlan &AdapterFMS::getEditablePlan()
     beginEditPlan = false;
     return editablePlan;
 }
-
-//void AdapterFMS::getNearestWaypoints(double lat, double lon, float dist, fp::WaypointType type)
-//{
-//    createRequest(cmdID::GET_NEAREST_WAYPOINTS, lat, lon, dist, type);
-//}
-
-//void AdapterFMS::getWaypointsFromActivePlan()
-//{
-//    createRequest(cmdID::GET_WAYPOINTS_FROM_ACTIVE_PLAN);
-//}
-
-//void AdapterFMS::getRecentWaypoints()
-//{
-//    createRequest(cmdID::GET_RECENT_WAYPOINTS);
-//}
 

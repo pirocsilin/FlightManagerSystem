@@ -96,7 +96,7 @@ void printWaypointSmallInfo(Waypoint &pt)
     qDebug() << msg.toUtf8().data();
 }
 
-void printWaypointFullInfo(Waypoint &pt)
+void printWaypointFullInfo(const Waypoint &pt)
 {
     QString info = QString("\tid: %1\ticao: %2\treg: %3\ttype: %4\tlat: "
                            "%5\t lon: %6\talt: %7\tfreq: %8\t rwId: %9")
@@ -219,7 +219,7 @@ void printCommandStatus(const CommandStatus &status)
     qDebug() << "Status: " << (int)status;
 }
 
-void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point)
+void printWaypointInfo(const WaypointPair &point)
 {
     qDebug() << "Status: " << (int)point.first;
 
@@ -229,7 +229,7 @@ void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point)
     }
 }
 
-void printPlanInfo(const std::pair<fp::CommandStatus, fp::FlightPlan> &plan)
+void printPlanInfo(const FlightPlanPair &plan)
 {
     qDebug() << "Status: " << (int)plan.first;
 

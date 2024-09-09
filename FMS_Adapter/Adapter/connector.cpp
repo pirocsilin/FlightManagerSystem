@@ -69,8 +69,6 @@ void Connector::sendDataAndAwaite(QByteArray *data)
 
     timer.start(100);
     loop.exec();
-
-    //waitCondition.wakeOne();
 }
 
 void Connector::slotTryConnectToController()

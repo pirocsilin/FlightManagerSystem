@@ -66,15 +66,15 @@ void printActivePlanInfo(const std::pair<CommandStatus, ActivePlanInfo> &info);
 // Waypoints Info
 double distanceToPoint(double lat1, double lon1, double lat2, double lon2);
 double calculateBearing(double lat1, double lon1, double lat2, double lon2);
-void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point);
+void printWaypointInfo(const WaypointPair &point);
 void printWaypointVectorInfo(const WaypointVectorPair &vector);
 void sortWaypointVector (std::vector<Waypoint> &vector);
 void removeDistantPoint(std::vector<Waypoint> &vector, float dist, WaypointType type);
 void printWaypointSmallInfo(Waypoint &pt);
-void printWaypointFullInfo(Waypoint &pt);
+void printWaypointFullInfo(const Waypoint &pt);
 
 // FlightPlan Info
-void printPlanInfo(const std::pair<fp::CommandStatus, fp::FlightPlan> &plan);
+void printPlanInfo(const FlightPlanPair &plan);
 void printCatalogInfoOfPlans(const std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> &planInfo);
 void clearPlan(FlightPlan &plan);
 void invertPlan(FlightPlan &plan);

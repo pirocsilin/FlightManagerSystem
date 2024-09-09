@@ -327,7 +327,7 @@ void DBconnector::savePlan()
     FlightPlan plan;
     *inputData >> plan;
 
-    if(plan.id != -1)   //!< перезаписываем существующий план с проверкой на существование
+    if(plan.id != -1)                               // перезаписываем существующий план с проверкой на существование
     {
         query = QString("SELECT id_flight_plan FROM flight_plans WHERE id_flight_plan = %1;").arg(plan.id);
         if(!executeQuery(query))
@@ -337,14 +337,14 @@ void DBconnector::savePlan()
             plan.id = -1;
         else
         {
-            if(!insertWaypointIntoPlan(plan))   // обновляем список точек
+            if(!insertWaypointIntoPlan(plan))       // обновляем список точек
                 return;
         }
     }
 
-    if(plan.id == -1 && plan.waypoints.size() > 0)   //!< добавляем новый план в базу
+    if(plan.id == -1 && plan.waypoints.size() > 0)   // добавляем новый план в базу
     {
-        query = QString("SELECT MAX(id_flight_plan) as maxId FROM flight_plans;");
+        query = QString("SELECT id_flight_plan AS id FROM flight_plans ORDER BY id ASC;");
         if(!executeQuery(query))
             return;
 
@@ -352,11 +352,18 @@ void DBconnector::savePlan()
             plan.id = 1;
         else
         {
+            int newId = 1;
             DBquery.seek(-1);
             rec = DBquery.record();
-            DBquery.next();
-            int maxIdPlanInBase = DBquery.value(rec.indexOf("maxId")).toInt();
-            plan.id = maxIdPlanInBase + 1;
+            while(DBquery.next())
+            {
+                int curId = DBquery.value(rec.indexOf("id")).toInt();
+                if(newId < curId)
+                    break;
+                else
+                    newId++;
+            }
+            plan.id = newId;
         }
 
         query = QString("INSERT INTO flight_plans (id_flight_plan) VALUES (%1);").arg(plan.id);
@@ -415,27 +422,26 @@ bool DBconnector::insertWaypointIntoPlan(FlightPlan &plan)
 
 void DBconnector::getWaypointById()
 {
-    int id;
-    *inputData >> id;
+    Waypoint point{};
+    *inputData >> point.id;
 
-    query = QString("SELECT * FROM waypoints WHERE id = %1;").arg(id);
+    query = QString("SELECT * FROM waypoints WHERE id = %1;").arg(point.id);
 
-    if(!executeQuery(query) || !checkExistsObject())
+    if(!executeQuery(query))
         return;
 
     rec = DBquery.record();
-    DBquery.next();
-
-    Waypoint point;
-    point.id           = DBquery.value(rec.indexOf("id")).toInt();
-    point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
-    point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
-    point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
-    point.altitude     = DBquery.value(rec.indexOf("altitude")).toInt();
-    point.region       = DBquery.value(rec.indexOf("region")).toString().toStdString();
-    point.type         = static_cast<WaypointType>(DBquery.value(rec.indexOf("type")).toInt());
-    point.radioFrequency  = DBquery.value(rec.indexOf("radio_freq")).toInt();
-    point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
+    if(DBquery.next())
+    {
+        point.icao         = DBquery.value(rec.indexOf("icao")).toString().toStdString();
+        point.latitude     = DBquery.value(rec.indexOf("latitude")).toDouble();
+        point.longitude    = DBquery.value(rec.indexOf("longitude")).toDouble();
+        point.altitude     = DBquery.value(rec.indexOf("altitude")).toInt();
+        point.region       = DBquery.value(rec.indexOf("region")).toString().toStdString();
+        point.type         = static_cast<WaypointType>(DBquery.value(rec.indexOf("type")).toInt());
+        point.radioFrequency  = DBquery.value(rec.indexOf("radio_freq")).toInt();
+        point.runwayId     = DBquery.value(rec.indexOf("runway_id")).toInt();
+    }
 
     *outData << *hdr << point;
 }
@@ -446,7 +452,7 @@ void DBconnector::getWaypointByIcao()
 
     *inputData >> identifier;
 
-    query = QString("SSELECT * FROM waypoints WHERE icao='%1' ORDER BY icao ASC;")
+    query = QString("SELECT * FROM waypoints WHERE icao='%1' ORDER BY icao ASC;")
                     .arg(QString::fromStdString(identifier));
     if(!executeQuery())
         return;

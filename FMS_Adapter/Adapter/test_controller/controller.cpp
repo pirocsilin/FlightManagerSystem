@@ -34,7 +34,7 @@ void Controller::savePlan(FlightPlan plan)
 
     CommandStatus status = adapter.savePlan(plan);
 
-    // emit ...
+    emit signalSavePlan(status);
 }
 
 void Controller::deletePlan(uint32_t id)
@@ -43,7 +43,7 @@ void Controller::deletePlan(uint32_t id)
 
     CommandStatus status = adapter.deletePlan(id);
 
-    // emit ...
+    emit signalDeletePlan(status);
 }
 
 void Controller::invertPlan(uint32_t id)
@@ -52,26 +52,25 @@ void Controller::invertPlan(uint32_t id)
 
     CommandStatus status = adapter.invertPlan(id);
 
-    // emit ...
+    emit signalInvertPlan(status);
 }
 
 void Controller::getWaypointByIcao(std::string icao)
 {
     ASYNC_INVOKE(getWaypointByIcao, Q_ARG(std::string, icao))
 
-    std::pair<fp::CommandStatus, std::vector<Waypoint>> res = adapter.getWaypointByIcao(icao);
+    WaypointVectorPair result = adapter.getWaypointByIcao(icao);
 
-    // emit ...
+    emit signalGetWaypointByIcao(result);
 }
 
 void Controller::getWaypointById(uint32_t id)
 {
     ASYNC_INVOKE(getWaypointById, Q_ARG(uint32_t, id))
 
-    std::pair<fp::CommandStatus, fp::Waypoint> waypoint = adapter.getWaypointById(id);
+    WaypointPair result = adapter.getWaypointById(id);
 
-    // emit ...
-    printWaypointInfo(waypoint);
+    emit signalGetWaypointById(result);
 }
 
 void Controller::saveWaypoint(Waypoint point)
@@ -80,7 +79,7 @@ void Controller::saveWaypoint(Waypoint point)
 
     CommandStatus status = adapter.saveWaypoint(point);
 
-    // emit ...
+    emit signalSaveWaypoint(status);
 }
 
 void Controller::deleteWaypoint(uint32_t id)
@@ -93,7 +92,7 @@ void Controller::deleteWaypoint(uint32_t id)
     QMetaObject::invokeMethod(adapter.actPlanMngrPtr(),
                               "getActivePlanInfo",
                               Qt::BlockingQueuedConnection,
-                              Q_ARG(ActivePlanInfoPair, res));
+                              Q_ARG(ActivePlanInfoPair&, res));
 
     if(res.first == CommandStatus::OK)
     {
@@ -112,7 +111,7 @@ void Controller::deleteWaypoint(uint32_t id)
     else
         status = adapter.deleteWaypoint(id);
 
-    // emit status
+    emit signalDeleteWaypont(status);
 }
 
 void Controller::getCatalogInfoOfPlans()
@@ -155,34 +154,37 @@ void Controller::startEditPlan(uint32_t id)
     }
     else
     {
-        std::pair<fp::CommandStatus, fp::FlightPlan> res = adapter.getPlan(id);
+        FlightPlanPair res = adapter.getPlan(id);
         if(res.first == CommandStatus::OK)
             adapter.setEditablePlan(res.second);
 
         status = res.first;
     }
 
-    // emit status
+    emit signalStartEditPlan(status);
 }
 
-void Controller::endEditPlan(bool safe, bool activate)
+void Controller::stopEditPlan(bool safe, bool activate)
 {
-    ASYNC_INVOKE(endEditPlan, Q_ARG(bool, safe), Q_ARG(bool, activate))
+    ASYNC_INVOKE(stopEditPlan, Q_ARG(bool, safe), Q_ARG(bool, activate))
 
     FlightPlan plan = adapter.getEditablePlan();
 
+    CommandStatus status{CommandStatus::OK};
     if(safe)
     {
         // сохранить план в базу
+        status = adapter.savePlan(plan);
 
-        if(activate)
+        if(activate && status == CommandStatus::OK)
         {
-            CommandStatus status = adapter.activatePlan(plan.id);   // i'm here
+            CommandStatus status = adapter.activatePlan(plan.id);
 
-            // emit signalActivatePlan(res)
+            emit signalActivatePlan(status);
         }
     }
-    //! else nothing
+
+    emit signalStopEditPlan(status);
 }
 
 void Controller::getNearestWaypoints(float dist)
@@ -198,7 +200,7 @@ void Controller::addWaypointToEditPlan(uint32_t pos, uint32_t id)
 {
     ASYNC_INVOKE(addWaypointToEditPlan, Q_ARG(uint32_t, pos), Q_ARG(uint32_t, id))
 
-    std::pair<fp::CommandStatus, fp::Waypoint> waypoint = adapter.getWaypointById(id);
+    WaypointPair waypoint = adapter.getWaypointById(id);
 
     if(waypoint.first == CommandStatus::OK)
     {

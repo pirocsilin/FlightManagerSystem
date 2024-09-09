@@ -114,13 +114,14 @@ struct NavDataFms
     ActivePlanInfo activePlan;          //!< данные активного плана
 };
 
-typedef std::pair<CommandStatus, ActivePlanInfo>                ActivePlanInfoPair;
-typedef std::pair<CommandStatus, std::vector<FlightPlanInfo>>   FlightPlanInfoPair;
-typedef std::pair<fp::CommandStatus, fp::FlightPlan>            FlightPlanPair;
-typedef std::pair<CommandStatus, FlightPlanRouteInfo>           FlightPlanRouteInfoPair;
-typedef std::pair<CommandStatus, FlightPlan>                    FlightPlanPair;
-typedef std::pair<CommandStatus, ActivePlanInfo>                ActivePlanInfoPair;
-typedef std::pair<CommandStatus, std::vector<Waypoint>>         WaypointVectorPair;
+typedef std::pair<fp::CommandStatus, fp::ActivePlanInfo>              ActivePlanInfoPair;
+typedef std::pair<fp::CommandStatus, std::vector<fp::FlightPlanInfo>> FlightPlanInfoPair;
+typedef std::pair<fp::CommandStatus, fp::FlightPlan>                  FlightPlanPair;
+typedef std::pair<fp::CommandStatus, fp::FlightPlanRouteInfo>         FlightPlanRouteInfoPair;
+typedef std::pair<fp::CommandStatus, fp::FlightPlan>                  FlightPlanPair;
+typedef std::pair<fp::CommandStatus, fp::ActivePlanInfo>              ActivePlanInfoPair;
+typedef std::pair<fp::CommandStatus, std::vector<fp::Waypoint>>       WaypointVectorPair;
+typedef std::pair<fp::CommandStatus, fp::Waypoint>                    WaypointPair;
 
 }
 

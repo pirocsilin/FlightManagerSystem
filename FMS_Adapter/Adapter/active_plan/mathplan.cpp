@@ -86,7 +86,7 @@ void ActivePlanManager::getActivePlanInfo()
     emit signalGetActivePlanInfo(result);
 }
 
-void ActivePlanManager::getActivePlanInfo(std::pair<CommandStatus, ActivePlanInfo> &data)
+void ActivePlanManager::getActivePlanInfo(ActivePlanInfoPair &data)
 {
     CommandStatus statusCmd = activePlanIsSet ? CommandStatus::OK :
                                                 CommandStatus::INVALID;
@@ -97,6 +97,11 @@ void ActivePlanManager::activatePlan(FlightPlan &plan)
 {
     setRoute(plan);
     activePlanIsSet = true;
+}
+
+void ActivePlanManager::deactivatePlan()
+{
+    // ^__^
 }
 
 void ActivePlanManager::setDeviceFlightData(const fp::DeviceFlightData &data)
@@ -171,22 +176,6 @@ void ActivePlanManager::selectNextPoint(bool direction)
     }
 }
 
-FlightPlan &ActivePlanManager::getEditActivePlan()
-{
-    editActivePlan = activePlan;
-    return editActivePlan;
-}
-
-void ActivePlanManager::setEditActivePlan()
-{
-    activePlan = editActivePlan;
-}
-
-uint32_t ActivePlanManager::getIndexActivePoint()
-{
-    return fpg.indexCurrentPoint;
-}
-
 void ActivePlanManager::addWaypointToActivePlan(uint32_t position, Waypoint &point)
 {
     if(position < 0 || position >= editActivePlan.waypoints.size())
@@ -202,12 +191,12 @@ void ActivePlanManager::addWaypointToActivePlan(uint32_t position, Waypoint &poi
     createNameForPlan(editActivePlan);
 
     uint32_t indexCurrentPoint = fpg.indexCurrentPoint;
-    uint32_t indexPsitionAfterInsert = position <= indexCurrentPoint ?
+    uint32_t indexPositionAfterInsert = position <= indexCurrentPoint ?
                                        indexCurrentPoint + 1 :
                                        indexCurrentPoint;
     setRoute(editActivePlan);
 
-    for(uint32_t i{}; i < indexPsitionAfterInsert; i++)
+    for(uint32_t i{}; i < indexPositionAfterInsert; i++)
         selectNextPoint(true);
 }
 
@@ -217,7 +206,7 @@ void ActivePlanManager::setCurrentPosition(float latitude, float longitude)
     currentPosition.second = longitude;
 }
 
-void ActivePlanManager::getCurrrentPosision(float &latitude, float &longitude)
+void ActivePlanManager::getCurrrentPosition(float &latitude, float &longitude)
 {
     latitude  = currentPosition.first;
     longitude = currentPosition.second;
@@ -230,7 +219,7 @@ void ActivePlanManager::sortWaypointByDistance(std::vector<Waypoint> &vector)
           distanceToOne {},
           distanceToTwo {};
 
-    getCurrrentPosision(latitudeCurPosition, longitudeCurPosition);
+    getCurrrentPosition(latitudeCurPosition, longitudeCurPosition);
     if(!std::isnan(latitudeCurPosition) && !std::isnan(longitudeCurPosition))
     {
         std::sort(vector.begin(), vector.end(), [&](Waypoint &one, Waypoint &two){
@@ -302,169 +291,6 @@ bool ActivePlanManager::calcActivePlan(float latitudeCurPosition, float longitud
 
     return true;
 }
-
-#if 0
-bool ActivePlanManager::calcActivePlan(float latitudeCurPosition, float longitudeCurPosition,
-                                             float Vx, float Vz)
-{
-    if(routeGuide.indexCurrentPoint >= static_cast<uint32_t>(activePlanGuide.points.size()))
-        return false;
-
-    float psi = atan2(Vz, Vx);   //! фактический путевой угол
-    if(psi < 0)
-        psi += TWO_PI;
-
-    float psi_route_abeam {0.0f};
-
-    float Kh      {0.0f};
-    float dS      {0.0f};
-    float psi_des {0.0f};
-    float dZ      {0.0f};
-    float ddZ     {0.0f};
-    float curSpeed = Vx*Vx + Vz*Vz;
-    float Rr = curSpeed / (9.81 * tan(qDegreesToRadians(25*0.9)));
-    curSpeed = sqrt(curSpeed);
-    float az {0.0f};                //! азимут текущей ЛЗП
-    float azimuthToNextPPM {0.0f};  //! азимут от ВС на след ППМ
-    float distanceToNextPPM {0.0f}; //! дальность от ВС на след ППМ
-    float distanceToNextNextPPM {0.0f}; //! дальность от ВС на след после активной ППМ
-    float az_lzp {0.0f};
-
-    //! расчет средней скорости
-    float meanSpeed = getMeanSpeed(curSpeed);
-
-    ActivePlanGuide::PointParams &curPoint = activePlanGuide.points[routeGuide.indexCurrentPoint];
-
-    if(routeGuide.indexCurrentPoint == 0)
-    {
-        /// первую точку летим в режиме "Прямо На"
-        calcDistAndTrackBetweenWaypoints(latitudeCurPosition, longitudeCurPosition, // i'm here
-                                         curPoint.latitude, curPoint.longitude,
-                                         &distanceToNextPPM, &azimuthToNextPPM);
-        distanceToNextPPM *= EARTH_RADIUS;
-        dS = distanceToNextPPM;
-        psi_des = azimuthToNextPPM;
-        az = azimuthToNextPPM;
-        routeGuide.isNav = true;
-        routeGuide.isDirectTo = true;
-        Kh = routeGuide.Kh_nav;
-    }
-    else
-    {
-        ActivePlanGuide::PointParams &prevPoint = activePlanGuide.points[routeGuide.indexCurrentPoint-1];
-
-        float S, az0, S0, Bt, Lt;
-        //! п. 1.1
-        /** az_lzp - азимут из предыдущей точки на следующую
-         *
-         * az - азимут со следующей точки на предыдущую
-         * */
-        calcDistAndTrackBetweenWaypoints(prevPoint.latitude, prevPoint.longitude,
-                                         curPoint.latitude, curPoint.longitude,
-                                         &S, &az_lzp, &az);
-
-        //! п. 1.2
-        //! расчет азимута az0 из предыдущей точки на текущее положение
-        calcDistAndTrackBetweenWaypoints(prevPoint.latitude, prevPoint.longitude,
-                                         latitudeCurPosition, longitudeCurPosition,
-                                         &S0, &az0);
-
-        //! п. 1.3
-        float az2pt;
-        /** az2pt - азимут из текущего положения на след точку
-         * az1 - азимут со следующей точки на текущее положение
-         */
-        calcDistAndTrackBetweenWaypoints(latitudeCurPosition, longitudeCurPosition,
-                                         curPoint.latitude, curPoint.longitude,
-                                         &distanceToNextPPM, &az2pt, &azimuthToNextPPM);
-        distanceToNextPPM *= EARTH_RADIUS;
-
-        // Если есть следующая точка от активной, вычисляем расстояние от активной до нее
-        if(routeGuide.indexCurrentPoint < activePlanGuide.points.size()-1)
-        {
-            calcDistAndTrackBetweenWaypoints(curPoint.latitude,
-                                             curPoint.longitude,
-                                             activePlanGuide.points[routeGuide.indexCurrentPoint+1].latitude,
-                                             activePlanGuide.points[routeGuide.indexCurrentPoint+1].longitude,
-
-                                             &distanceToNextNextPPM, nullptr, nullptr);
-            distanceToNextNextPPM *= EARTH_RADIUS;
-        }
-
-        //! п. 1.4 (формулы в скобках)
-        //! азимут между азимутом со след ПМ на предыдущий и азимутом со след ПМ на текущее положение
-        float dAz = bound_pi(az - azimuthToNextPPM, M_PI);
-        dZ = distanceToNextPPM * sin(dAz);
-        dS = distanceToNextPPM * cos(dAz);
-
-        //! п. 1.5
-        calcWaypointFromDistAndTrack(curPoint.latitude, curPoint.longitude, dS/EARTH_RADIUS,
-                                     az, &Bt, &Lt);
-        calcDistAndTrackBetweenWaypoints(Bt, Lt, curPoint.latitude, curPoint.longitude,
-                                         nullptr, &psi_route_abeam);//&psi_route_abeam);
-
-        //! п.1.7
-        ddZ = -Vx*sin(psi_route_abeam) + Vz*cos(psi_route_abeam);
-
-        //! п. 1.6
-        float dddd = dZ/Rr + ddZ/120.0f;
-        if(dddd > 1)
-        {
-            dddd = 1;
-            routeGuide.isNav = true;
-            Kh = routeGuide.Kh_nav;
-        }else if(dddd < -1)
-        {
-            dddd = -1;
-            routeGuide.isNav = true;
-            Kh = routeGuide.Kh_nav;
-        }else
-        {
-            routeGuide.isNav = false;
-            Kh = routeGuide.Kh_stb;
-        }
-        psi_des = bound_2pi(psi_route_abeam - M_PI/2*dddd, TWO_PI);
-        routeGuide.isDirectTo = false;
-
-        //! расстояние до текущей точки
-        curPoint.distanceFromPrevPoint = 0; // NOTE пока не используется
-        curPoint.distanceFromCurPosition = distanceToNextPPM;
-        //! время до текущей точки
-        curPoint.timeSecFromCurPosition = static_cast<uint32_t>(curPoint.distanceFromCurPosition/meanSpeed);
-        curPoint.timeSecFromPrevPoint = 0;  // NOTE пока не используется
-
-        //! ПЕРЕКЛЮЧЕНИЕ! режим: прямо через точку
-        if(fabs(dS) < routeGuide.switchPointDistance)
-        {
-            ++routeGuide.indexCurrentPoint;
-        }
-
-        if(routeGuide.indexCurrentPoint >= static_cast<uint32_t>(activePlanGuide.points.size()))
-        {
-            return false;
-        }
-
-        //! выходные данные
-        routeGuide.trackDeviationZ             = dZ;  //! боковое отклонение в метрах
-        routeGuide.distanceTrackLineToCurPoint = dS;
-        routeGuide.distanceToCurPoint          = distanceToNextPPM;
-        routeGuide.desiredTrackAngleToCurPoint = psi_des;   //delta_psi_des;
-        routeGuide.desiredAltitudeToCurPoint   = curPoint.altitude;
-        routeGuide.azimuthToCurPoint           = azimuthToNextPPM;
-        routeGuide.remainTimeToCurPoint        = qFuzzyCompare(curSpeed, 0.0f) ? 0 : (distanceToNextPPM/curSpeed);
-        routeGuide.remainTimeToNextPoint       = qFuzzyCompare(curSpeed, 0.0f) ? 0 : ((distanceToNextPPM + distanceToNextNextPPM)/curSpeed);
-
-        activePlanInfo.remainFlightDistance = static_cast<uint16_t>(distanceToNextPPM);
-
-        for(uint32_t i{routeGuide.indexCurrentPoint+1}; i<activePlanInfo.waypoints.size(); i++)
-            activePlanInfo.remainFlightDistance += activePlanInfo.waypoints[i].distance;
-
-        activePlanInfo.remainFlightTime = activePlanInfo.remainFlightDistance/curSpeed;
-
-        return true;
-    }
-}
-#endif
 
 void ActivePlanManager::calcWaypointFromDistAndTrack(float B0, float L0, float rng, float az, float *B, float *L)
 {

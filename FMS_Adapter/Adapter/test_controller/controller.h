@@ -24,7 +24,7 @@ public slots:
     void deletePlan(uint32_t id);               //!< удалить план из базы по id
     void invertPlan(uint32_t);                  //!< инвертировать план
     void startEditPlan(uint32_t id);            //!< старт редактирования плана [if id = -1, создаем новый план]
-    void endEditPlan(bool safe, bool activate); //!< стоп  редактирования плана
+    void stopEditPlan(bool safe, bool activate);//!< стоп  редактирования плана
     //
     void getNearestWaypoints(float dist);       //!< получить ближайшие 20 точек не дальше чем dist [m]
     void getWaypointByIcao(std::string name);   //!< получить ППМ из базы по ICAO
@@ -47,8 +47,19 @@ public slots:
 signals:
 
     void signalGetPlan(FlightPlanPair);
+    void signalSavePlan(CommandStatus);
+    void signalDeletePlan(CommandStatus);
+    void signalInvertPlan(CommandStatus);
+    void signalStartEditPlan(CommandStatus);
+    void signalStopEditPlan(CommandStatus);
+    //
+    void signalGetNearestWaypoints(WaypointVectorPair);
+    void signalGetWaypointByIcao(WaypointVectorPair);
+    void signalGetWaypointById(WaypointPair);
+    void signalSaveWaypoint(CommandStatus);
+    void signalDeleteWaypont(CommandStatus);
+    //
     void signalGetCatalogInfoOfPLans(FlightPlanInfoPair);
     void signalGetPlanRouteInfo(FlightPlanRouteInfoPair);
     void signalActivatePlan(CommandStatus);
-    void signalGetNearestWaypoints(WaypointVectorPair);
 };

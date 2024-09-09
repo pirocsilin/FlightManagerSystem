@@ -1,4 +1,4 @@
-#ifndef ADAPTER_H
+﻿#ifndef ADAPTER_H
 #define ADAPTER_H
 
 #include <QPair>
@@ -44,7 +44,7 @@ public:
     ~AdapterFMS() = default;
 
     // получение плана полета из базы данных по id
-    std::pair<fp::CommandStatus, fp::FlightPlan> getPlan(uint32_t id);
+    FlightPlanPair getPlan(uint32_t id);
 
     // сохранить план в базу
     fp::CommandStatus savePlan(FlightPlan &plan);
@@ -56,13 +56,13 @@ public:
     fp::CommandStatus invertPlan(uint32_t id);
 
     // получить ближайшие 20 точек не дальше чем dist [m]
-    std::pair<fp::CommandStatus, std::vector<Waypoint>> getNearestWaypoints(float dist);
+    WaypointVectorPair getNearestWaypoints(float dist);
 
     // получить точки ППМ по ICAO
-    std::pair<fp::CommandStatus, std::vector<Waypoint>> getWaypointByIcao(std::string icao);
+    WaypointVectorPair getWaypointByIcao(std::string icao);
 
     // получить ППМ по id
-    std::pair<fp::CommandStatus, fp::Waypoint> getWaypointById(uint32_t idWaypoint);
+    WaypointPair getWaypointById(uint32_t idWaypoint);
 
     // сохранить ППМ в базе
     fp::CommandStatus saveWaypoint(Waypoint &point);
@@ -91,17 +91,22 @@ public:
     // переключение на следующую или предыдущую ППМ (true - след, false - перд)
     void selectNextPoint(bool direction);
 
-    void addWaypointToEditPlan(uint32_t position, Waypoint &point); //!< вставить точку в редактируемый план
-    void deleteWaypointFromEditPlan(uint32_t position);             //!< удалить точку из редактируемого плана
+    // вставить точку в редактируемый план
+    void addWaypointToEditPlan(uint32_t position, Waypoint &point);
 
-    void setEditablePlan(FlightPlan &);     //!< установить редактируемый план
-    FlightPlan& getEditablePlan();          //!< получить редактируемый план
+    // удалить точку из редактируемого плана
+    void deleteWaypointFromEditPlan(uint32_t position);
+
+    // установить редактируемый план
+    void setEditablePlan(FlightPlan &);
+
+    // получить редактируемый план
+    FlightPlan& getEditablePlan();
 
     ActivePlanManager* actPlanMngrPtr() { return activePlanManager.data(); }
 
     // Активация режима Прямо На для точки в активном плане
     // void activateDirectToMode(uint32_t id);
-
 };
 
 #endif // ADAPTER_H

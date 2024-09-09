@@ -3,7 +3,6 @@
 
 #include <QString>
 #include <QVector>
-#include <QMutex>
 #include "common/structsflightplan.h"
 #include "common/labsflightplan.h"
 #include "structs_data.h"
@@ -19,23 +18,15 @@ public:
     explicit ActivePlanManager();
     ~ActivePlanManager() = default;
 
-    Qt::HANDLE selfThread;
-    bool activePlanIsSet {false};
-
-    void setRoute(FlightPlan &plan, uint activePoint=0);    //!< установка маршрута для активного плана
-    void resetRoute();                                      //!< очистка расчетных параметров
-
-    NavDataFms navDataFms;                                  //!< возвращаемые расчитанные пилотажные данные
-
-    FlightPlan& getEditActivePlan();
-    void setEditActivePlan();
-    uint32_t getIndexActivePoint();
-
     void addWaypointToActivePlan(uint32_t position, Waypoint &point);
-    void setCurrentPosition (float latitude, float longitude);
 
-//private:
+private:
 
+    const double EARTH_RADIUS {6371000.0};      //!< условный радиус земной сферы, м
+
+    bool activePlanIsSet {false};               //!< признак установленного активного плана
+
+    NavDataFms              navDataFms;         //!< возвращаемые расчитанные пилотажные данные
     ActivePlanGuide         fpg;                //!< параметры для расчета активного плана
     ActivePlanInfo          activePlanInfo;     //!< информация об активном плане
     FlightPlan              activePlan;         //!< активный план
@@ -50,24 +41,26 @@ public:
                                           float *r = nullptr, float *az1 = nullptr,
                                           float *az2 = nullptr);
 
+    void setCurrentPosition (float lat, float lon);         //!< запомнить текущую позицию ВС
+    void setRoute(FlightPlan &plan, uint activePoint=0);    //!< установка маршрута для активного плана
+    void resetRoute();                                      //!< очистка расчетных параметров
+
     float getMeanSpeed(float speed);
     float bound_pi(float val, float bnd);
     float bound_2pi(float val, float bnd);
 
     void trySafeOldActivePoint();
 
-    const double EARTH_RADIUS {6371000.0}; //!< Условный радиус земной сферы, м
-
 public slots:
 
     void setDeviceFlightData(const DeviceFlightData& data);     //!< установка навигационных данных
     void sortWaypointByDistance(std::vector<Waypoint> &vector); //!< сортировка точек по удаленности
     void getActivePlanInfo();                                   //!< получить активный план(ActivePlanInfo) сигналом
-    void getActivePlanInfo(std::pair<fp::CommandStatus,         //!< получить активный план(ActivePlanInfo) объектом
-                           fp::ActivePlanInfo> &);
+    void getActivePlanInfo(ActivePlanInfoPair&);                //!< получить активный план(ActivePlanInfo) объектом
     void activatePlan(FlightPlan &plan);                        //!< активация плана
+    void deactivatePlan();                                      //!< удалить активный план
     void selectNextPoint(bool direction);                       //!< переключение на следующую ППМ
-    void getCurrrentPosision(float &latitude, float &longitude);//!< получить текущее положение ВС
+    void getCurrrentPosition(float &latitude, float &longitude);//!< получить текущее положение ВС
 
 signals:
 

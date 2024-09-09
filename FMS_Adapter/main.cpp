@@ -29,8 +29,16 @@ void testAnyMethods(Controller &controller)
     QObject::connect(&controller, &Controller::signalActivatePlan, [](const CommandStatus &info){printCommandStatus(info);});
     QObject::connect(controller.adapterPrt()->actPlanMngrPtr(), &ActivePlanManager::signalGetActivePlanInfo, [](const ActivePlanInfoPair &info){printActivePlanInfo(info);});
     QObject::connect(&controller, &Controller::signalGetNearestWaypoints, [](const WaypointVectorPair &info){printWaypointVectorInfo(info);});
+    QObject::connect(&controller, &Controller::signalSavePlan,   [](const CommandStatus &info){printCommandStatus(info);});
+    QObject::connect(&controller, &Controller::signalDeletePlan, [](const CommandStatus &info){printCommandStatus(info);});
+    QObject::connect(&controller, &Controller::signalInvertPlan, [](const CommandStatus &info){printCommandStatus(info);});
+    QObject::connect(&controller, &Controller::signalGetWaypointByIcao, [](const WaypointVectorPair &info){printWaypointVectorInfo(info);});
+    QObject::connect(&controller, &Controller::signalGetWaypointById, [](const WaypointPair &info){printWaypointInfo(info);});
+    QObject::connect(&controller, &Controller::signalSaveWaypoint, [](const CommandStatus &info){printCommandStatus(info);});
+    QObject::connect(&controller, &Controller::signalDeleteWaypont, [](const CommandStatus &info){printCommandStatus(info);});
 
-    controller.getNearestWaypoints(10000);
+    //controller.saveWaypoint({-1,"ACDC","MU",(WaypointType)0,0,0,0,0,0});
+    controller.deleteWaypoint(35);
 }
 
 void testSelectNextPoint()
@@ -77,11 +85,11 @@ void testSelectNextPoint()
             targetLon = nextPos[0].second;
         }
 
-        mngr.calcDistAndTrackBetweenWaypoints(qDegreesToRadians(curLat+i),
-                                              qDegreesToRadians(curLon+i),
-                                              qDegreesToRadians(targetLat),
-                                              qDegreesToRadians(targetLon),
-                                              &dist);
+//        mngr.calcDistAndTrackBetweenWaypoints(qDegreesToRadians(curLat+i),
+//                                              qDegreesToRadians(curLon+i),
+//                                              qDegreesToRadians(targetLat),
+//                                              qDegreesToRadians(targetLon),
+//                                              &dist);
 
         NavDataFms navData{};
         controller.setDeviceFlightData(DeviceFlightData{curLat+i, curLon+i, 32, 22});

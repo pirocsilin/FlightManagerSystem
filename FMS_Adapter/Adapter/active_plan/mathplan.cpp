@@ -15,13 +15,17 @@ ActivePlanManager::ActivePlanManager()
     currentPosition.second = std::numeric_limits<float>::quiet_NaN();
 }
 
-void ActivePlanManager::setRoute(FlightPlan &plan, uint32_t activePoint)
+void ActivePlanManager::setRoute(FlightPlan &plan)
 {
+    uint32_t activePoint = trySafeOldActivePoint(plan);
+
     // сбрасываем настройки ведения по маршруту
     resetRoute();
 
     // запоминаем активный план
     activePlan = plan;
+
+    if(activePlan.waypoints.empty()) return;
 
     // заполняем структуру ActivePlanInfo
     activePlanInfo.id   = activePlan.id;
@@ -73,14 +77,13 @@ void ActivePlanManager::resetRoute()
     //! сбрасываем настройки ведения по маршруту
     activePlanInfo     = {};
     navDataFms         = {};
-    activePlan         = {};
-    fpg                = {};
+    fpg.clearData();
 }
 
 void ActivePlanManager::getActivePlanInfo()
 {
-    CommandStatus statusCmd = activePlanIsSet ? CommandStatus::OK :
-                                                CommandStatus::INVALID;
+    CommandStatus statusCmd = activePlanInfo.waypoints.size() > 0 ? CommandStatus::OK :
+                                                                    CommandStatus::INVALID;
     auto result = std::make_pair(statusCmd, activePlanInfo);
 
     emit signalGetActivePlanInfo(result);
@@ -88,20 +91,14 @@ void ActivePlanManager::getActivePlanInfo()
 
 void ActivePlanManager::getActivePlanInfo(ActivePlanInfoPair &data)
 {
-    CommandStatus statusCmd = activePlanIsSet ? CommandStatus::OK :
-                                                CommandStatus::INVALID;
+    CommandStatus statusCmd = activePlanInfo.waypoints.size() > 0 ? CommandStatus::OK :
+                                                                    CommandStatus::INVALID;
     data = std::make_pair(statusCmd, activePlanInfo);
 }
 
 void ActivePlanManager::activatePlan(FlightPlan &plan)
 {
     setRoute(plan);
-    activePlanIsSet = true;
-}
-
-void ActivePlanManager::deactivatePlan()
-{
-    // ^__^
 }
 
 void ActivePlanManager::setDeviceFlightData(const fp::DeviceFlightData &data)
@@ -164,7 +161,7 @@ void ActivePlanManager::setDeviceFlightData(const fp::DeviceFlightData &data)
 
 void ActivePlanManager::selectNextPoint(bool direction)
 {
-    if(activePlanIsSet)
+    if(activePlanInfo.waypoints.size() > 1)
     {
         uint32_t curIndex = fpg.indexCurrentPoint;
         if(fpg.selectNextPoint(direction))
@@ -173,6 +170,8 @@ void ActivePlanManager::selectNextPoint(bool direction)
             activePlanInfo.waypoints[fpg.indexCurrentPoint].isActive = true;
             activePlanInfo.activeWaypoint = activePlan.waypoints[fpg.indexCurrentPoint];
         }
+
+        emit signalSelectNextPoint();
     }
 }
 
@@ -379,18 +378,24 @@ float ActivePlanManager::bound_2pi(float val, float bnd)
     return val;
 }
 
-void ActivePlanManager::trySafeOldActivePoint()
+uint32_t ActivePlanManager::trySafeOldActivePoint(FlightPlan &plan)
 {
-    bool pointsIsIdentity {true};
-    int pos {};
-    for(; pos <= fpg.indexCurrentPoint; pos++)
+    if(plan.id != -1 && plan.id == activePlan.id && fpg.indexCurrentPoint < plan.waypoints.size())
     {
-        if(editActivePlan.waypoints[pos] != activePlan.waypoints[pos])
+        bool pointsIsIdentity {true};
+        int  pos {0};
+        for(; pos <= fpg.indexCurrentPoint; pos++)
         {
-            pointsIsIdentity = false;
-            break;
+            if(plan.waypoints[pos] != activePlan.waypoints[pos])
+            {
+                pointsIsIdentity = false;
+                break;
+            }
         }
+        return pointsIsIdentity ? pos-1 : 0;
     }
-    pos = pointsIsIdentity ? pos - 1 : 0;
-    setRoute(editActivePlan, pos);
+    return 0;
 }
+
+
+

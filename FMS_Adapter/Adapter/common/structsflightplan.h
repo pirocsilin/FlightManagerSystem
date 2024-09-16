@@ -78,7 +78,7 @@ struct FlightPlanRouteInfo
 
 struct ActivePlanInfo
 {
-    uint32_t                       id;             //!< id плана
+    int32_t                        id;             //!< id плана
     std::string                    name;           //!< наименование плана
     uint32_t                       remainFlightDistance; //!< оставшееся расстояние полета по маршруту, м
     uint32_t                       remainFlightTime;     //!< оставшееся время полета по маршруту, c
@@ -118,10 +118,9 @@ typedef std::pair<fp::CommandStatus, fp::ActivePlanInfo>              ActivePlan
 typedef std::pair<fp::CommandStatus, std::vector<fp::FlightPlanInfo>> FlightPlanInfoPair;
 typedef std::pair<fp::CommandStatus, fp::FlightPlan>                  FlightPlanPair;
 typedef std::pair<fp::CommandStatus, fp::FlightPlanRouteInfo>         FlightPlanRouteInfoPair;
-typedef std::pair<fp::CommandStatus, fp::FlightPlan>                  FlightPlanPair;
-typedef std::pair<fp::CommandStatus, fp::ActivePlanInfo>              ActivePlanInfoPair;
 typedef std::pair<fp::CommandStatus, std::vector<fp::Waypoint>>       WaypointVectorPair;
 typedef std::pair<fp::CommandStatus, fp::Waypoint>                    WaypointPair;
+typedef std::pair<fp::CommandStatus, int32_t>                         IdPair;
 
 }
 

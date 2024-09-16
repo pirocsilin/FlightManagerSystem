@@ -107,9 +107,8 @@ bool DBconnector::checkExistsObject()
 
 bool DBconnector::getPlanfromDB(FlightPlan &plan)
 {
-    query = QString("SELECT id_flight_plan FROM flight_plans WHERE id_flight_plan IN "
-                    "(SELECT DISTINCT id_flight_plan FROM fpl_points) "
-                    "AND id_flight_plan=%1;").arg(plan.id);
+    query = QString("SELECT id_flight_plan FROM fpl_points WHERE id_flight_plan=%1 "
+                    "GROUP BY id_flight_plan;").arg(plan.id);
 
     if(!executeQuery(query))
         return false;
@@ -281,11 +280,11 @@ bool DBconnector::recordWaypointIntoBase(Waypoint &point, bool newPoint)
 
 void DBconnector::invertPlan()
 {
-    uint32_t idFlightPlan;
-    *inputData >> idFlightPlan;
+    uint32_t id;
+    *inputData >> id;
 
     query = QString("SELECT id_waypoint AS idPoint FROM fpl_points "
-                    "WHERE id_flight_plan=%1 ORDER BY position_point ASC;").arg(idFlightPlan);
+                    "WHERE id_flight_plan=%1 ORDER BY position_point ASC;").arg(id);
     if(!executeQuery())
         return;
 
@@ -301,7 +300,7 @@ void DBconnector::invertPlan()
 
     if(arr.size() > 1)
     {
-        query = QString("DELETE FROM fpl_points WHERE id_flight_plan=%1;").arg(idFlightPlan);
+        query = QString("DELETE FROM fpl_points WHERE id_flight_plan=%1;").arg(id);
         if(!executeQuery())
             return;
 
@@ -311,7 +310,7 @@ void DBconnector::invertPlan()
         int pos{1};
         for(auto it = arr.rbegin(); it != arr.rend(); it++)
         {
-            insertPart += QString("(%1, %2, %3),").arg(idFlightPlan).arg(*it).arg(pos++);
+            insertPart += QString("(%1, %2, %3),").arg(id).arg(*it).arg(pos++);
         }
         query += insertPart.remove(insertPart.size()-1, 1) + ';';
 
@@ -374,7 +373,7 @@ void DBconnector::savePlan()
             return;
     }
 
-    *outData << *hdr << fp::CommandStatus::OK;
+    *outData << *hdr << plan.id;
 }
 
 void DBconnector::deletePlan()

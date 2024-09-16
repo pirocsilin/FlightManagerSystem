@@ -1,5 +1,6 @@
 
 #include "labsflightplan.h"
+#include <QThread>
 #include <cmath>
 
 namespace fp {
@@ -307,7 +308,7 @@ void printActivePlanInfo(const std::pair<CommandStatus, ActivePlanInfo> &data)
         for(auto point : data.second.waypoints)
             printWaypointRouteInfo(point);
 
-        //printWaypointFullInfo(data.second.activeWaypoint);
+        printWaypointFullInfo(data.second.activeWaypoint);
     }
 }
 

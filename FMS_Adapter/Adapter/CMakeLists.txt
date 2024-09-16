@@ -21,8 +21,8 @@ file(GLOB SRC_FILES INCLUDE_DIRECTORIES false
 #    ./math/*.cpp
     ./active_plan/*.h
     ./active_plan/*.cpp
-    ./test_controller/*.h
-    ./test_controller/*.cpp
+    ./connect/*.h
+    ./connect/*.cpp
     ./common/*.h
     ./common/*.cpp)
 

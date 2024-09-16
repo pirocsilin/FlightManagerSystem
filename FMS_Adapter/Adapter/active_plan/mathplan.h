@@ -24,8 +24,6 @@ private:
 
     const double EARTH_RADIUS {6371000.0};      //!< условный радиус земной сферы, м
 
-    bool activePlanIsSet {false};               //!< признак установленного активного плана
-
     NavDataFms              navDataFms;         //!< возвращаемые расчитанные пилотажные данные
     ActivePlanGuide         fpg;                //!< параметры для расчета активного плана
     ActivePlanInfo          activePlanInfo;     //!< информация об активном плане
@@ -42,14 +40,14 @@ private:
                                           float *az2 = nullptr);
 
     void setCurrentPosition (float lat, float lon);         //!< запомнить текущую позицию ВС
-    void setRoute(FlightPlan &plan, uint activePoint=0);    //!< установка маршрута для активного плана
+    void setRoute(FlightPlan &plan);                        //!< установка маршрута для активного плана
     void resetRoute();                                      //!< очистка расчетных параметров
 
     float getMeanSpeed(float speed);
     float bound_pi(float val, float bnd);
     float bound_2pi(float val, float bnd);
 
-    void trySafeOldActivePoint();
+    uint32_t trySafeOldActivePoint(FlightPlan &plan);
 
 public slots:
 
@@ -58,7 +56,6 @@ public slots:
     void getActivePlanInfo();                                   //!< получить активный план(ActivePlanInfo) сигналом
     void getActivePlanInfo(ActivePlanInfoPair&);                //!< получить активный план(ActivePlanInfo) объектом
     void activatePlan(FlightPlan &plan);                        //!< активация плана
-    void deactivatePlan();                                      //!< удалить активный план
     void selectNextPoint(bool direction);                       //!< переключение на следующую ППМ
     void getCurrrentPosition(float &latitude, float &longitude);//!< получить текущее положение ВС
 

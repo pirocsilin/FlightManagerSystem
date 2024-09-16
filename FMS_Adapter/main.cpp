@@ -1,8 +1,9 @@
 ﻿
 #include <QCoreApplication>
-#include "test_controller/controller.h"
+#include "controller.h"
 #include <iostream>
 #include <qmath.h>
+#include <stdlib.h>
 
 void testSelectNextPoint();
 void testAnyMethods(Controller&);
@@ -27,7 +28,6 @@ void testAnyMethods(Controller &controller)
     QObject::connect(&controller, &Controller::signalGetPlan, [](const FlightPlanPair &info){printPlanInfo(info);});
     QObject::connect(&controller, &Controller::signalGetPlanRouteInfo, [](const FlightPlanRouteInfoPair &info){printFlightPlanRouteInfo(info);});
     QObject::connect(&controller, &Controller::signalActivatePlan, [](const CommandStatus &info){printCommandStatus(info);});
-    QObject::connect(controller.adapterPrt()->actPlanMngrPtr(), &ActivePlanManager::signalGetActivePlanInfo, [](const ActivePlanInfoPair &info){printActivePlanInfo(info);});
     QObject::connect(&controller, &Controller::signalGetNearestWaypoints, [](const WaypointVectorPair &info){printWaypointVectorInfo(info);});
     QObject::connect(&controller, &Controller::signalSavePlan,   [](const CommandStatus &info){printCommandStatus(info);});
     QObject::connect(&controller, &Controller::signalDeletePlan, [](const CommandStatus &info){printCommandStatus(info);});
@@ -35,10 +35,70 @@ void testAnyMethods(Controller &controller)
     QObject::connect(&controller, &Controller::signalGetWaypointByIcao, [](const WaypointVectorPair &info){printWaypointVectorInfo(info);});
     QObject::connect(&controller, &Controller::signalGetWaypointById, [](const WaypointPair &info){printWaypointInfo(info);});
     QObject::connect(&controller, &Controller::signalSaveWaypoint, [](const CommandStatus &info){printCommandStatus(info);});
-    QObject::connect(&controller, &Controller::signalDeleteWaypont, [](const CommandStatus &info){printCommandStatus(info);});
+    QObject::connect(&controller, &Controller::signalDeleteWaypointFromBase, [](const CommandStatus &info){printCommandStatus(info);});
+    //
+    QObject::connect(&controller, &Controller::signalStartEditPlan, [&](const CommandStatus &info){printPlanInfo(std::make_pair(info, controller.adapterPrt()->getEditablePlan()));});
+    QObject::connect(&controller, &Controller::signalAddWaypoint, [&](const CommandStatus &info){printPlanInfo(std::make_pair  (info, controller.adapterPrt()->getEditablePlan()));});
+    QObject::connect(&controller, &Controller::signalDeleteWaypont, [&](const CommandStatus &info){printPlanInfo(std::make_pair(info, controller.adapterPrt()->getEditablePlan()));});
+    //
+    QObject::connect(controller.adapterPrt()->actPlanMngrPtr(), &ActivePlanManager::signalGetActivePlanInfo, [](const ActivePlanInfoPair &info){printActivePlanInfo(info);});
+    QObject::connect(controller.adapterPrt()->actPlanMngrPtr(), &ActivePlanManager::signalSelectNextPoint, [&](){controller.getActivePlanInfo();});
 
     //controller.saveWaypoint({-1,"ACDC","MU",(WaypointType)0,0,0,0,0,0});
-    controller.deleteWaypoint(35);
+
+    controller.setDeviceFlightData({55.5, 48.4, 12, 15});
+    getchar();
+    controller.activatePlan(4);
+    getchar();
+    controller.getActivePlanInfo();
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.deleteWaypoint(30);
+    getchar();
+    controller.getActivePlanInfo();
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.selectNextPoint(true);
+    getchar();
+    controller.deleteWaypoint(26);
+    getchar();
+    controller.getActivePlanInfo();
+    getchar();
+    controller.deleteWaypoint(27);
+    controller.deleteWaypoint(28);
+    getchar();
+    controller.getActivePlanInfo();
+    getchar();
+    controller.deleteWaypoint(29);
+    getchar();
+    controller.getActivePlanInfo();
+    getchar();
+
+//    int point{};
+//    bool direct = false;
+//    while (true)
+//    {
+//        if(point++ % 3 == 0)
+//        {
+//            direct = !direct;
+//        }
+//        std::getchar();
+//        controller.selectNextPoint(direct);
+//    }
 }
 
 void testSelectNextPoint()

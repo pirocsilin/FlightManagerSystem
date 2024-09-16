@@ -32,9 +32,9 @@ void Controller::savePlan(FlightPlan plan)
 {
     ASYNC_INVOKE(savePlan, Q_ARG(FlightPlan, plan))
 
-    CommandStatus status = adapter.savePlan(plan);
+    IdPair result = adapter.savePlan(plan);
 
-    emit signalSavePlan(status);
+    emit signalSavePlan(result.first);
 }
 
 void Controller::deletePlan(uint32_t id)
@@ -44,6 +44,11 @@ void Controller::deletePlan(uint32_t id)
     CommandStatus status = adapter.deletePlan(id);
 
     emit signalDeletePlan(status);
+
+    if(status == CommandStatus::OK && id == adapter.getActivePlan().id)
+    {
+        activatePlan(-1);
+    }
 }
 
 void Controller::invertPlan(uint32_t id)
@@ -53,6 +58,11 @@ void Controller::invertPlan(uint32_t id)
     CommandStatus status = adapter.invertPlan(id);
 
     emit signalInvertPlan(status);
+
+    if(status == CommandStatus::OK && id == adapter.getActivePlan().id)
+    {
+        activatePlan(id);
+    }
 }
 
 void Controller::getWaypointByIcao(std::string icao)
@@ -80,45 +90,30 @@ void Controller::saveWaypoint(Waypoint point)
     CommandStatus status = adapter.saveWaypoint(point);
 
     emit signalSaveWaypoint(status);
+
+    // если id != -1 (точка не новая) и если есть в активном плане,
+    // то необходима активация плана при успешном статусе сохранения точки
 }
 
 void Controller::deleteWaypoint(uint32_t id)
 {
     ASYNC_INVOKE(deleteWaypoint, Q_ARG(uint32_t, id))
 
-    CommandStatus status{CommandStatus::INVALID};
-    ActivePlanInfoPair res{};
+    CommandStatus status = adapter.deleteWaypoint(id);
 
-    QMetaObject::invokeMethod(adapter.actPlanMngrPtr(),
-                              "getActivePlanInfo",
-                              Qt::BlockingQueuedConnection,
-                              Q_ARG(ActivePlanInfoPair&, res));
+    emit signalDeleteWaypointFromBase(status);
 
-    if(res.first == CommandStatus::OK)
+    if(status == CommandStatus::OK && adapter.pointInActivePlan(id))
     {
-        bool deletedPointInActivePlan {false};
-        for(auto point : res.second.waypoints)
-            if(point.id == id)
-            {
-                deletedPointInActivePlan = true;
-                break;
-            }
-        if(!deletedPointInActivePlan)
-        {
-            status = adapter.deleteWaypoint(id);
-        }
+        activatePlan(adapter.getActivePlan().id);
     }
-    else
-        status = adapter.deleteWaypoint(id);
-
-    emit signalDeleteWaypont(status);
 }
 
 void Controller::getCatalogInfoOfPlans()
 {
     ASYNC_INVOKE(getCatalogInfoOfPlans)
 
-    std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> planInfo = adapter.getCatalogInfoOfPlans();
+    FlightPlanInfoPair planInfo = adapter.getCatalogInfoOfPlans();
 
     emit signalGetCatalogInfoOfPLans(planInfo);
 }
@@ -145,46 +140,62 @@ void Controller::startEditPlan(uint32_t id)
 {
     ASYNC_INVOKE(startEditPlan, Q_ARG(uint32_t, id))
 
-    CommandStatus status = CommandStatus::OK;
-    if(id == -1)
+    adapter.setStateEditPlan(true);
+    CommandStatus status{CommandStatus::OK};
+
+    if(id == -1)    //!< создать план [3]
     {
         FlightPlan newPlan{};
         newPlan.id = id;
         adapter.setEditablePlan(newPlan);
     }
-    else
+    else            //!> изменить план [3]
     {
         FlightPlanPair res = adapter.getPlan(id);
         if(res.first == CommandStatus::OK)
-            adapter.setEditablePlan(res.second);
-
+        {
+            if(res.second.waypoints.empty())
+            {
+                FlightPlan newPlan{};
+                newPlan.id = -1;
+                adapter.setEditablePlan(newPlan);
+            }
+            else
+                adapter.setEditablePlan(res.second);
+        }
         status = res.first;
     }
 
     emit signalStartEditPlan(status);
 }
 
-void Controller::stopEditPlan(bool safe, bool activate)
+void Controller::stopEditPlan(bool save, bool activate)
 {
-    ASYNC_INVOKE(stopEditPlan, Q_ARG(bool, safe), Q_ARG(bool, activate))
+    ASYNC_INVOKE(stopEditPlan, Q_ARG(bool, save), Q_ARG(bool, activate))
 
-    FlightPlan plan = adapter.getEditablePlan();
-
-    CommandStatus status{CommandStatus::OK};
-    if(safe)
+    adapter.setStateEditPlan(false);
+    CommandStatus saveStatus;
+    if(save)
     {
-        // сохранить план в базу
-        status = adapter.savePlan(plan);
+        FlightPlan savePlan = adapter.getEditablePlan();
+        IdPair result = adapter.savePlan(savePlan);
 
-        if(activate && status == CommandStatus::OK)
+        int idActivePlan = adapter.getActivePlan().id;
+        int idSavedPlan  = result.second;
+        CommandStatus saveStatus = result.first;
+
+        if(saveStatus == CommandStatus::OK)
         {
-            CommandStatus status = adapter.activatePlan(plan.id);
+            if(activate || idActivePlan == idSavedPlan)
+            {
+                idSavedPlan = savePlan.waypoints.empty() ? -1 : idSavedPlan;
+                CommandStatus activateStatus = adapter.activatePlan(idSavedPlan);
 
-            emit signalActivatePlan(status);
+                emit signalActivatePlan(activateStatus);
+            }
         }
+        emit signalStopEditPlan(saveStatus);
     }
-
-    emit signalStopEditPlan(status);
 }
 
 void Controller::getNearestWaypoints(float dist)
@@ -200,23 +211,25 @@ void Controller::addWaypointToEditPlan(uint32_t pos, uint32_t id)
 {
     ASYNC_INVOKE(addWaypointToEditPlan, Q_ARG(uint32_t, pos), Q_ARG(uint32_t, id))
 
-    WaypointPair waypoint = adapter.getWaypointById(id);
+    WaypointPair result = adapter.getWaypointById(id);
 
-    if(waypoint.first == CommandStatus::OK)
+    if(result.first == CommandStatus::OK)
     {
-        adapter.addWaypointToEditPlan(pos, waypoint.second);
-    }
+        CommandStatus status = adapter.addWaypointToEditPlan(pos, result.second);
 
-    // emit signalRedrawScreen
+        emit signalAddWaypoint(status);
+    }
+    else
+        emit signalAddWaypoint(result.first);
 }
 
 void Controller::deleteWaypointFromEditPlan(uint32_t pos)
 {
     ASYNC_INVOKE(deleteWaypointFromEditPlan, Q_ARG(uint32_t, pos))
 
-    adapter.deleteWaypointFromEditPlan(pos);
+    CommandStatus status = adapter.deleteWaypointFromEditPlan(pos);
 
-    // emit signalRedrawScreen
+    emit signalDeleteWaypont(status);
 }
 
 void Controller::getActivePlanInfo()

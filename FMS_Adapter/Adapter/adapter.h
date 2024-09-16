@@ -1,4 +1,4 @@
-﻿#ifndef ADAPTER_H
+#ifndef ADAPTER_H
 #define ADAPTER_H
 
 #include <QPair>
@@ -15,7 +15,7 @@
 #include "active_plan/structs_data.h"
 #include "common/labsflightplan.h"
 #include "active_plan/mathplan.h"
-#include "connector.h"
+#include "connect/connector.h"
 
 using namespace fp;
 
@@ -35,6 +35,7 @@ private:
 
     bool beginEditPlan {false};                             //!< признак редактирования плана полета
     FlightPlan editablePlan;                                //!< редактируемый план полета
+    FlightPlan activePlan{};                                //!< активный план полета
 
     template<typename... Args>
     bool createRequestAndSend(cmdID id, Args... args);      //!< создание запроса к FMS
@@ -47,7 +48,7 @@ public:
     FlightPlanPair getPlan(uint32_t id);
 
     // сохранить план в базу
-    fp::CommandStatus savePlan(FlightPlan &plan);
+    IdPair savePlan(FlightPlan &plan);
 
     // удалить план из базы
     fp::CommandStatus deletePlan(uint32_t);
@@ -71,10 +72,10 @@ public:
     fp::CommandStatus deleteWaypoint(uint32_t id);
 
     // получение информации о планах полета из БД для отображения в каталоге
-    std::pair<fp::CommandStatus, std::vector<fp::FlightPlanInfo>> getCatalogInfoOfPlans();
+    FlightPlanInfoPair getCatalogInfoOfPlans();
 
     // получение информации о плане полета из БД для списка планов
-    std::pair<fp::CommandStatus, fp::FlightPlanRouteInfo> getPlanRouteInfo(uint32_t id);
+    FlightPlanRouteInfoPair getPlanRouteInfo(uint32_t id);
 
     // рассчитать и вернуть сигналом навигационные параметры NavDataFms
     void setDeviceFlightData(const fp::DeviceFlightData& data);
@@ -92,18 +93,21 @@ public:
     void selectNextPoint(bool direction);
 
     // вставить точку в редактируемый план
-    void addWaypointToEditPlan(uint32_t position, Waypoint &point);
+    CommandStatus addWaypointToEditPlan(uint32_t position, Waypoint &point);
 
     // удалить точку из редактируемого плана
-    void deleteWaypointFromEditPlan(uint32_t position);
+    CommandStatus deleteWaypointFromEditPlan(uint32_t position);
 
     // установить редактируемый план
     void setEditablePlan(FlightPlan &);
 
-    // получить редактируемый план
-    FlightPlan& getEditablePlan();
+    // //
 
     ActivePlanManager* actPlanMngrPtr() { return activePlanManager.data(); }
+    FlightPlan& getActivePlan()         { return activePlan; }
+    FlightPlan& getEditablePlan()       { return editablePlan;}
+    void setStateEditPlan(bool state)   { beginEditPlan = state; }
+    bool pointInActivePlan(int idPoint);
 
     // Активация режима Прямо На для точки в активном плане
     // void activateDirectToMode(uint32_t id);

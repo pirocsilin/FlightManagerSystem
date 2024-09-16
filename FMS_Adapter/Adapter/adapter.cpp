@@ -1,4 +1,4 @@
-﻿
+
 #include "adapter.h"
 
 AdapterFMS::AdapterFMS()
@@ -92,17 +92,17 @@ FlightPlanPair AdapterFMS::getPlan(uint32_t id)
         }
 }
 
-CommandStatus AdapterFMS::savePlan(FlightPlan &plan)
+IdPair AdapterFMS::savePlan(FlightPlan &plan)
 {
     if(!connector->isTcpConnected)
-        return CommandStatus::NO_CONNECTION;
+        return std::make_pair(CommandStatus::NO_CONNECTION, 0);
     else
         if(!createRequestAndSend(cmdID::SAVE_PLAN, plan))
-            return CommandStatus::ERROR_DATABASE;
+            return std::make_pair(CommandStatus::ERROR_DATABASE, 0);
     else{
-            CommandStatus status;
-            getDataFromResponse(connector->inputData, status);
-            return status;
+            int32_t idPlan;
+            getDataFromResponse(connector->inputData, idPlan);
+            return std::make_pair(CommandStatus::OK, idPlan);
         }
 }
 
@@ -134,7 +134,7 @@ CommandStatus AdapterFMS::invertPlan(uint32_t id)
         }
 }
 
-std::pair<CommandStatus, std::vector<Waypoint> > AdapterFMS::getNearestWaypoints(float dist)
+WaypointVectorPair AdapterFMS::getNearestWaypoints(float dist)
 {
     if(!connector->isTcpConnected)
         return std::make_pair(CommandStatus::NO_CONNECTION, std::vector<Waypoint>());
@@ -182,7 +182,7 @@ WaypointVectorPair AdapterFMS::getWaypointByIcao(std::string icao)
         }
 }
 
-std::pair<CommandStatus, std::vector<FlightPlanInfo> > AdapterFMS::getCatalogInfoOfPlans()
+FlightPlanInfoPair AdapterFMS::getCatalogInfoOfPlans()
 {
     if(!connector->isTcpConnected)
         return std::make_pair(CommandStatus::NO_CONNECTION, std::vector<FlightPlanInfo>());
@@ -258,17 +258,27 @@ CommandStatus AdapterFMS::deleteWaypoint(uint32_t id)
 
 CommandStatus AdapterFMS::activatePlan(uint32_t planId)
 {
-    FlightPlanPair res = getPlan(planId);
-    if(res.first != CommandStatus::OK)
-        return res.first;
+    activePlan = {};
 
-    if(res.second.waypoints.empty())
-        return CommandStatus::INVALID;
+    if(planId == -1)
+        activePlan.id = planId;
+    else
+    {
+        FlightPlanPair res = getPlan(planId);
+
+        if(res.first != CommandStatus::OK)
+            return res.first;
+
+        activePlan = std::move(res.second);
+
+        if(activePlan.waypoints.empty())
+            activePlan.id = -1;
+    }
 
     QMetaObject::invokeMethod(activePlanManager.data(),
                               "activatePlan",
                               Qt::BlockingQueuedConnection,
-                              Q_ARG(FlightPlan&, res.second));
+                              Q_ARG(FlightPlan&, activePlan));
 
     return CommandStatus::OK;
 }
@@ -296,43 +306,51 @@ void AdapterFMS::selectNextPoint(bool direction)
                               Q_ARG(bool, direction));
 }
 
-void AdapterFMS::addWaypointToEditPlan(uint32_t position, Waypoint &point)
+CommandStatus AdapterFMS::addWaypointToEditPlan(uint32_t position, Waypoint &point)
 {
     if(beginEditPlan)
     {
         if(position < 0 || position > editablePlan.waypoints.size())
-            return;
+            return CommandStatus::INVALID;
 
         auto it = editablePlan.waypoints.begin();
         editablePlan.waypoints.insert(it + position, point);
 
         createNameForPlan(editablePlan);
+        return CommandStatus::OK;
     }
+    return CommandStatus::INVALID;
 }
 
-void AdapterFMS::deleteWaypointFromEditPlan(uint32_t position)
+CommandStatus AdapterFMS::deleteWaypointFromEditPlan(uint32_t position)
 {
     if(beginEditPlan)
     {
         if(position < 0 || position >= editablePlan.waypoints.size())
-            return;
+            return CommandStatus::INVALID;
 
         auto it = editablePlan.waypoints.begin();
         editablePlan.waypoints.erase(it + position);
 
         createNameForPlan(editablePlan);
+        return CommandStatus::OK;
     }
+    return CommandStatus::INVALID;
 }
 
 void AdapterFMS::setEditablePlan(FlightPlan &plan)
 {
-    beginEditPlan = true;
     editablePlan = plan;
 }
 
-FlightPlan &AdapterFMS::getEditablePlan()
+bool AdapterFMS::pointInActivePlan(int idPoint)
 {
-    beginEditPlan = false;
-    return editablePlan;
+    auto it = std::find_if(activePlan.waypoints.begin(),
+                           activePlan.waypoints.end(),
+                           [&](const Waypoint& two){
+        return idPoint == two.id;
+    });
+
+    return it != activePlan.waypoints.end();
 }
 

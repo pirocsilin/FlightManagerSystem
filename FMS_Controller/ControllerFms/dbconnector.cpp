@@ -1,6 +1,6 @@
 
 #include "dbconnector.h"
-#include <QString>
+
 
 DBconnector::DBconnector() :
     QSqlDatabase(QSqlDatabase::addDatabase(sqlDriver))
@@ -207,7 +207,7 @@ void DBconnector::saveWaypoint()
             return;
     }
 
-    *outData << *hdr << fp::CommandStatus::OK;
+    *outData << *hdr << point.id;
 }
 
 void DBconnector::deleteWaypoint()

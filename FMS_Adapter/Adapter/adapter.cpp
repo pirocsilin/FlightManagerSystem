@@ -16,10 +16,17 @@ AdapterFMS::AdapterFMS()
     activePlanManagerThread.setObjectName("ActivePlanManager");
     activePlanManagerThread.start();
 
+    editablePoint.id = -1;
+    editablePlan.id  = -1;
+
     qRegisterMetaType<std::string>  ("std::string");
-    qRegisterMetaType<uint32_t>     ("uint32_t");
     qRegisterMetaType<bool>         ("bool");
+    qRegisterMetaType<float>        ("float");
+    qRegisterMetaType<double>       ("double");
+    qRegisterMetaType<int32_t>      ("int32_t");
+    qRegisterMetaType<uint32_t>     ("uint32_t");
     qRegisterMetaType<Waypoint>     ("Waypoint");
+    qRegisterMetaType<WaypointType> ("WaypointType");
     qRegisterMetaType<FlightPlan>   ("FlightPlan");
     qRegisterMetaType<NavDataFms>   ("NavDataFms");
     qRegisterMetaType<QByteArray*>  ("QByteArray*");
@@ -178,7 +185,29 @@ WaypointVectorPair AdapterFMS::getWaypointByIcao(std::string icao)
                                           Q_ARG(std::vector<Waypoint>&, points));
 
             }
-            return std::make_pair(CommandStatus::OK, points);
+            if(points.empty())
+                return std::make_pair(CommandStatus::INVALID, std::vector<Waypoint>());
+            else
+                return std::make_pair(CommandStatus::OK, points);
+        }
+}
+
+WaypointPair AdapterFMS::getWaypointById(uint32_t id)
+{
+    if(!connector->isTcpConnected)
+        return std::make_pair(CommandStatus::NO_CONNECTION, Waypoint());
+    else
+        if(!createRequestAndSend(cmdID::GET_WAYPOINT_BY_ID, id))
+            return std::make_pair(CommandStatus::ERROR_DATABASE, Waypoint());
+    else
+        {
+            Waypoint point;
+            getDataFromResponse(connector->inputData, point);
+
+            if(pointIsValid(point))
+                return std::make_pair(CommandStatus::OK, point);
+            else
+                return std::make_pair(CommandStatus::INVALID, Waypoint());
         }
 }
 
@@ -211,33 +240,22 @@ FlightPlanRouteInfoPair AdapterFMS::getPlanRouteInfo(uint32_t id)
         }
 }
 
-std::pair<CommandStatus, Waypoint> AdapterFMS::getWaypointById(uint32_t id)
+IdPair AdapterFMS::saveWaypoint(Waypoint &point)
 {
     if(!connector->isTcpConnected)
-        return std::make_pair(CommandStatus::NO_CONNECTION, Waypoint());
-    else
-        if(!createRequestAndSend(cmdID::GET_WAYPOINT_BY_ID, id))
-            return std::make_pair(CommandStatus::ERROR_DATABASE, Waypoint());
-    else
-        {
-            Waypoint point;
-            getDataFromResponse(connector->inputData, point);
-            return std::make_pair(CommandStatus::OK, point);
-        }
-}
-
-CommandStatus AdapterFMS::saveWaypoint(Waypoint &point)
-{
-    if(!connector->isTcpConnected)
-        return CommandStatus::NO_CONNECTION;
+        return std::make_pair(CommandStatus::NO_CONNECTION, 0);
     else
         if(!createRequestAndSend(cmdID::SAVE_WAYPOINT, point))
-            return CommandStatus::ERROR_DATABASE;
+            return std::make_pair(CommandStatus::ERROR_DATABASE, 0);
     else
         {
-            CommandStatus status;
-            getDataFromResponse(connector->inputData, status);
-            return status;
+            int32_t idPoint;
+            getDataFromResponse(connector->inputData, idPoint);
+
+            if(pointIsValid(point))
+                return std::make_pair(CommandStatus::OK, idPoint);
+            else
+                return std::make_pair(CommandStatus::INVALID, 0);
         }
 }
 
@@ -341,6 +359,46 @@ CommandStatus AdapterFMS::deleteWaypointFromEditPlan(uint32_t position)
 void AdapterFMS::setEditablePlan(FlightPlan &plan)
 {
     editablePlan = plan;
+}
+
+void AdapterFMS::setEditPoint(Waypoint &point)
+{
+    editablePoint = point;
+}
+
+void AdapterFMS::createRouteInfo(FlightPlan &plan)
+{
+    WaypointRouteInfo wpRouteInfo{};
+    editablePlanInfo = {};
+    editablePlanInfo.id = plan.id;
+    editablePlanInfo.name = plan.name;
+
+    float distance;
+    float bearing;
+
+    for(int i{}; i<plan.waypoints.size(); i++)
+    {
+        wpRouteInfo.id   = plan.waypoints[i].id;
+        wpRouteInfo.icao = plan.waypoints[i].icao;
+        wpRouteInfo.altitude = plan.waypoints[i].altitude;
+        wpRouteInfo.isActive = false;
+
+        if(i)
+        {
+            calcDistAndTrackBetweenWaypoints(
+                        plan.waypoints[i-1].latitude,
+                        plan.waypoints[i-1].longitude,
+                        plan.waypoints[i].latitude,
+                        plan.waypoints[i].longitude,
+                        &distance,
+                        &bearing);
+
+            wpRouteInfo.distance = distance * EARTH_RADIUS;
+            wpRouteInfo.bearing = bearing * 180 / M_PI;
+        }
+
+        editablePlanInfo.waypoints.push_back(wpRouteInfo);
+    }
 }
 
 bool AdapterFMS::pointInActivePlan(int idPoint)

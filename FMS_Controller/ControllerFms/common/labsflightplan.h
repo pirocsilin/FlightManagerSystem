@@ -1,9 +1,13 @@
 #ifndef LABSFLIGHTPLAN_H
 #define LABSFLIGHTPLAN_H
 
+#include <cmath>
 #include <QDebug>
 #include <QDataStream>
 #include "structsflightplan.h"
+
+#define TWO_PI (2.0*M_PI)       //!< Число 2*Пи
+#define EARTH_RADIUS 6371000.0  //!< Условный радиус земной сферы, м
 
 namespace fp {
 
@@ -56,26 +60,32 @@ bool operator ==(const Waypoint &one, const Waypoint &two);
 bool operator !=(const Waypoint &one, const Waypoint &two);
 bool pointIsValid(const Waypoint &point);
 
+// CommandStatus
+void printCommandStatus(const CommandStatus &status);
+
 // FlightPlanRouteInfo
 void printWaypointRouteInfo(WaypointRouteInfo &point);
-void printFlightPlanRouteInfo(std::pair<CommandStatus, FlightPlanRouteInfo> &info);
-void printActivePlanInfo(ActivePlanInfo &info);
+void printFlightPlanRouteInfo(const FlightPlanRouteInfoPair &info);
+void printActivePlanInfo(const std::pair<CommandStatus, ActivePlanInfo> &info);
 
 // Waypoints Info
-double distanceToPoint(double lat1, double lon1, double lat2, double lon2);
-double calculateBearing(double lat1, double lon1, double lat2, double lon2);
-void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point);
-void sortWaypointVector (std::vector<Waypoint> &vector);
-void removeDistantPoint(std::vector<Waypoint> &vector, float dist, WaypointType type);
-void printWaypointSmallInfo(Waypoint &pt);
-void printWaypointFullInfo(Waypoint &pt);
+double distanceToPoint      (double lat1, double lon1, double lat2, double lon2);
+double calculateBearing     (double lat1, double lon1, double lat2, double lon2);
+void printWaypointInfo      (const WaypointPair &point);
+void printEditWaypointInfo  (const WaypointPair &point);
+void printWaypointVectorInfo(const WaypointVectorPair &vector);
+void printWaypointSmallInfo (Waypoint &pt);
+void printWaypointFullInfo  (const Waypoint &pt);
 
 // FlightPlan Info
-void printPlanInfo(std::pair<fp::CommandStatus, fp::FlightPlan> &plan);
-void printCatalogInfoOfPlans(std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> &planInfo);
-void clearPlan(FlightPlan &plan);
-void invertPlan(FlightPlan &plan);
-void createNameForPlan(FlightPlan &plan);
+void printPlanInfo          (const FlightPlanPair &plan);
+void printCatalogInfoOfPlans(const std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> &planInfo);
+void clearPlan              (FlightPlan &plan);
+void invertPlan             (FlightPlan &plan);
+void createNameForPlan      (FlightPlan &plan);
+
+// NavDataInfo
+void printNavDataFms(fp::NavDataFms& data);
 
 enum cmdID
 {
@@ -129,6 +139,11 @@ void getDataFromResponse(QByteArray &data, T &type)
 }
 
 void getHdrFromResponse(QByteArray &data, HeaderData &hdr);
+
+void calcDistAndTrackBetweenWaypoints(float b1, float l1, float b2, float l2,
+                                      float *r=nullptr, float *az1=nullptr, float *az2=nullptr);
+
+void sortWaypointByDistance(float curLat, float curLon, std::vector<Waypoint> &vector);
 
 }
 

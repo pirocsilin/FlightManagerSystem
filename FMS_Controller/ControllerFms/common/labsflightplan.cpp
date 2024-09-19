@@ -1,6 +1,6 @@
 
 #include "labsflightplan.h"
-#include <cmath>
+
 
 namespace fp {
 
@@ -96,7 +96,7 @@ void printWaypointSmallInfo(Waypoint &pt)
     qDebug() << msg.toUtf8().data();
 }
 
-void printWaypointFullInfo(Waypoint &pt)
+void printWaypointFullInfo(const Waypoint &pt)
 {
     QString info = QString("\tid: %1\ticao: %2\treg: %3\ttype: %4\tlat: "
                            "%5\t lon: %6\talt: %7\tfreq: %8\t rwId: %9")
@@ -106,6 +106,17 @@ void printWaypointFullInfo(Waypoint &pt)
                            .arg(pt.altitude).arg(pt.radioFrequency).arg(pt.runwayId);
 
     qDebug() << info.toUtf8().data();
+}
+
+void printWaypointVectorInfo(const WaypointVectorPair &res)
+{
+    qDebug() << "Status: " << (int)res.first;
+
+    if(res.first == CommandStatus::OK)
+    {
+        for(auto point : res.second)
+            printWaypointFullInfo(point);
+    }
 }
 
 QDataStream &operator <<(QDataStream &stream, const FlightPlanInfo &obj)
@@ -176,13 +187,13 @@ QDataStream &operator >>(QDataStream &stream, FlightPlan &plan)
     return stream;
 }
 
-QDataStream &operator <<(QDataStream &stream, const std::pair<CommandStatus, FlightPlan> &pair)
+QDataStream &operator <<(QDataStream &stream, const FlightPlanPair &pair)
 {
     stream << pair.first << pair.second;
     return stream;
 }
 
-QDataStream &operator >>(QDataStream &stream, std::pair<CommandStatus, FlightPlan> &pair)
+QDataStream &operator >>(QDataStream &stream, FlightPlanPair &pair)
 {
     stream >> pair.first >> pair.second;
     return stream;
@@ -203,7 +214,12 @@ QDataStream &operator >>(QDataStream &stream, cmdID &data)
     return stream;
 }
 
-void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point)
+void printCommandStatus(const CommandStatus &status)
+{
+    qDebug() << "Status: " << (int)status;
+}
+
+void printWaypointInfo(const WaypointPair &point)
 {
     qDebug() << "Status: " << (int)point.first;
 
@@ -213,7 +229,12 @@ void printWaypointInfo(std::pair<fp::CommandStatus, fp::Waypoint> &point)
     }
 }
 
-void printPlanInfo(std::pair<fp::CommandStatus, fp::FlightPlan> &plan)
+void printEditWaypointInfo(const WaypointPair &point)
+{
+    printWaypointFullInfo(point.second);
+}
+
+void printPlanInfo(const FlightPlanPair &plan)
 {
     qDebug() << "Status: " << (int)plan.first;
 
@@ -230,7 +251,7 @@ void printPlanInfo(std::pair<fp::CommandStatus, fp::FlightPlan> &plan)
     }
 }
 
-void printCatalogInfoOfPlans(std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> &plansInfo)
+void printCatalogInfoOfPlans(const std::pair<fp::CommandStatus, std::vector<FlightPlanInfo>> &plansInfo)
 {
     qDebug() << "Status: " << (int)plansInfo.first;
 
@@ -252,7 +273,7 @@ void printWaypointRouteInfo(WaypointRouteInfo &point)
                 .arg(point.id)
                 .arg(QString::fromStdString(point.icao))
                 .arg(point.bearing)
-                .arg(point.distance)
+                .arg(point.distance / 1000)     // км
                 .arg(point.altitude)
                 .arg(point.isActive);
 
@@ -260,7 +281,7 @@ void printWaypointRouteInfo(WaypointRouteInfo &point)
 }
 
 
-void printFlightPlanRouteInfo(std::pair<CommandStatus, FlightPlanRouteInfo> &data)
+void printFlightPlanRouteInfo(const FlightPlanRouteInfoPair &data)
 {
     qDebug() << "Status: " << (int)data.first;
 
@@ -276,18 +297,23 @@ void printFlightPlanRouteInfo(std::pair<CommandStatus, FlightPlanRouteInfo> &dat
     }
 }
 
-void printActivePlanInfo(ActivePlanInfo &plan)
+void printActivePlanInfo(const std::pair<CommandStatus, ActivePlanInfo> &data)
 {
-    qDebug() << QString("id: %1, name: %2, r_Dist: %3, r_Time: %4")
-                .arg(plan.id)
-                .arg(QString::fromStdString(plan.name))
-                .arg(plan.remainFlightDistance)
-                .arg(plan.remainFlightTime);
+    qDebug() << "Status: " << (int)data.first;
 
-    for(auto point : plan.waypoints)
-        printWaypointRouteInfo(point);
+    if(data.first == fp::CommandStatus::OK)
+    {
+        qDebug() << QString("id: %1, name: %2, r_Dist: %3, r_Time: %4")
+                    .arg(data.second.id)
+                    .arg(QString::fromStdString(data.second.name))
+                    .arg(data.second.remainFlightDistance)
+                    .arg(data.second.remainFlightTime);
 
-    printWaypointFullInfo(plan.activeWaypoint);
+        for(auto point : data.second.waypoints)
+            printWaypointRouteInfo(point);
+
+        printWaypointFullInfo(data.second.activeWaypoint);
+    }
 }
 
 QDataStream &operator <<(QDataStream &stream, const WaypointRouteInfo &data)
@@ -450,22 +476,27 @@ double calculateBearing(double lat1, double lon1, double lat2, double lon2)
     return bearing * 180.0 / M_PI;
 }
 
-void sortWaypointVector(std::vector<Waypoint> &vector)
+void printNavDataFms(NavDataFms &data)
 {
-    //    std::sort(vector.begin(), vector.end(),
-    //         [](Waypoint &obj1, Waypoint &obj2){
-    //        return obj1.distanceTo < obj2.distanceTo;
-    //    });
-}
+    qDebug() << QString("акт. точка:          %1\n"
+                        "след точка:          %2\n"
+                        "дальн. до акт.:      %3\n"
+                        "ост. время до акт.:  %4\n"
+                        "ост. время до след.: %5\n"
+                        "курс на акт.:        %6\n"
+                        "отклонение:          %7\n"
+                        "даль. до маяка:      %8")
+                        .arg(QString::fromStdString(data.activeWaypointIcao))
+                        .arg(QString::fromStdString(data.nextWaypointIcao))
+                        .arg(data.activeWaypointDistance)
+                        .arg(data.activeWaypointRemainTime)
+                        .arg(data.nextWaypointRemainTime)
+                        .arg(data.activeWaypointCourse)
+                        .arg(data.lateralDeviationPathLine)
+                        .arg(data.activeRadioBeaconDistance).toStdString().c_str();
 
-void removeDistantPoint(std::vector<Waypoint> &vector, float dist, WaypointType type)
-{
-    //    vector.erase(std::remove_if(vector.begin(),
-    //                                vector.end(),
-    //                                [&](Waypoint pt)
-    //                                {return pt.distanceTo > dist ||
-    //                                     !(static_cast<int>(pt.type) & static_cast<int>(type)) ;}),
-    //                                vector.end());
+    auto plan = std::make_pair(CommandStatus::OK, data.activePlan);
+    printActivePlanInfo(plan);
 }
 
 bool operator ==(const Waypoint &one, const Waypoint &two)
@@ -486,11 +517,6 @@ bool operator !=(const Waypoint &one, const Waypoint &two)
     return !(one == two);
 }
 
-bool pointIsValid(const Waypoint &point)
-{
-    return !point.icao.empty();
-}
-
 QDataStream &operator <<(QDataStream &stream, const std::string &type)
 {
     stream << QString::fromStdString(type);
@@ -503,6 +529,67 @@ QDataStream &operator >>(QDataStream &stream, std::string &type)
     stream >> _type;
     type = _type.toStdString();
     return stream;
+}
+
+void calcDistAndTrackBetweenWaypoints(float b1, float l1, float b2, float l2, float *r, float *az1, float *az2)
+{
+    b1 = b1 * M_PI / 180;
+    l1 = l1 * M_PI / 180;
+    b2 = b2 * M_PI / 180;
+    l2 = l2 * M_PI / 180;
+
+    float sinb1 = sin(b1);
+    float sinb2 = sin(b2);
+    float cosb1 = cos(b1);
+    float cosb2 = cos(b2);
+    float sindb2 = sin((b1 - b2)/2);
+    sindb2 *= sindb2;
+    float dl = l2-l1;
+    float sindl = sin(dl);
+    float cosdl = cos(dl);
+    float sindl2 = sin((dl)/2);
+    sindl2 *= sindl2;
+    float a = sindb2 + cosb1*cosb2*sindl2;
+    if(r)
+        *r = 2*atan2(sqrt(a), sqrt(1 - a)); //! расстояние в радианах
+
+    if(az1)
+    {
+        *az1 = atan2(cosb2*sindl, cosb1*sinb2 - sinb1*cosb2*cosdl);
+        if(*az1 < 0)
+            *az1 += TWO_PI;
+    }
+
+    if(az2)
+    {
+        *az2 = atan2(-cosb1*sindl, cosb2*sinb1 - sinb2*cosb1*cosdl);
+        if(*az2 < 0) *az2 += TWO_PI;
+    }
+}
+
+bool pointIsValid(const Waypoint &point)
+{
+    return !point.icao.empty();
+}
+
+void sortWaypointByDistance(float curLat, float curLon, std::vector<Waypoint> &vector)
+{
+    float distanceToOne {},
+          distanceToTwo {};
+
+    if(!std::isnan(curLat) && !std::isnan(curLon))
+    {
+        std::sort(vector.begin(), vector.end(), [&](Waypoint &one, Waypoint &two){
+
+            calcDistAndTrackBetweenWaypoints(curLat, curLon,
+                                             one.latitude, one.longitude, &distanceToOne);
+
+            calcDistAndTrackBetweenWaypoints(curLat, curLon,
+                                             two.latitude, two.longitude, &distanceToTwo);
+
+            return distanceToOne < distanceToTwo;
+        });
+    }
 }
 
 }

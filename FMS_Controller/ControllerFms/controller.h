@@ -28,7 +28,7 @@ private:
     int prevUniqueCmd   {};     //!< предыдущая уникальная команда
     DBconnector db;             //!< объект для работы с БД
 
-    qint16 nextBlockSize{};     //!< размер данныз для считывания из сокета
+    qint16 nextBlockSize{};     //!< размер данных для считывания из сокета
     QTimer connTimerMfi2;
 
     QTcpSocket mfi2Socket;      //!< сокет для коммуникации с МФИ-2

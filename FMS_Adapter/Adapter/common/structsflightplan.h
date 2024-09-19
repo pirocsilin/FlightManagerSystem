@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#define EMPTY_ID -1           //!< признак пустого объекта
+
 namespace fp {
 
 enum class CommandStatus
@@ -105,11 +107,11 @@ struct NavDataFms
 {
     std::string activeWaypointIcao;     //!< наименование (код ИКАО) активной точки
     std::string nextWaypointIcao;       //!< наименование (код ИКАО) следующей точки
-    uint32_t activeWaypointDistance;    //!< дальность до активной точки, м*10              // distanceToCurPoint
-    uint32_t activeWaypointRemainTime;  //!< оставшееся время до активной точки, с          // remainTimeToCurPoint
+    uint32_t activeWaypointDistance;    //!< дальность до активной точки, м*10
+    uint32_t activeWaypointRemainTime;  //!< оставшееся время до активной точки, с
     uint32_t nextWaypointRemainTime;    //!< оставшееся время до следующей точки, с
-    uint32_t activeWaypointCourse;      //!< курс на активную точку, градусы                // azimuthToCurPoint
-    uint32_t lateralDeviationPathLine;  //!< боковое отклонение от линии заданного пути, м  // trackDeviationZ
+    uint32_t activeWaypointCourse;      //!< курс на активную точку, градусы
+    uint32_t lateralDeviationPathLine;  //!< боковое отклонение от линии заданного пути, м
     uint32_t activeRadioBeaconDistance; //!< дальность до активного радиомаяка, м*10
     ActivePlanInfo activePlan;          //!< данные активного плана
 };

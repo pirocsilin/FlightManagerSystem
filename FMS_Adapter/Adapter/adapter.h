@@ -34,8 +34,13 @@ private:
     QThread activePlanManagerThread;
 
     bool beginEditPlan {false};                             //!< признак редактирования плана полета
-    FlightPlan editablePlan;                                //!< редактируемый план полета
-    FlightPlan activePlan{};                                //!< активный план полета
+    bool beginEditPoint{false};                             //!< признак редактирования ППМ
+
+    Waypoint  editablePoint   {};                           //!< редактируемая точка
+    FlightPlan editablePlan   {};                           //!< редактируемый план полета
+    FlightPlanRouteInfo editablePlanInfo{};                 //!< отображаемый редактируемый план полета
+    //
+    FlightPlan activePlan     {};                           //!< активный план полета
 
     template<typename... Args>
     bool createRequestAndSend(cmdID id, Args... args);      //!< создание запроса к FMS
@@ -66,7 +71,7 @@ public:
     WaypointPair getWaypointById(uint32_t idWaypoint);
 
     // сохранить ППМ в базе
-    fp::CommandStatus saveWaypoint(Waypoint &point);
+    IdPair saveWaypoint(Waypoint &point);
 
     // удалить ППМ из базы
     fp::CommandStatus deleteWaypoint(uint32_t id);
@@ -99,14 +104,22 @@ public:
     CommandStatus deleteWaypointFromEditPlan(uint32_t position);
 
     // установить редактируемый план
-    void setEditablePlan(FlightPlan &);
+    void setEditablePlan(FlightPlan&);
+
+    // установить редактируемую точку
+    void setEditPoint(Waypoint&);
+
+    // создать маршрут следования из плана полета
+    void createRouteInfo(FlightPlan&);
 
     // //
 
-    ActivePlanManager* actPlanMngrPtr() { return activePlanManager.data(); }
-    FlightPlan& getActivePlan()         { return activePlan; }
-    FlightPlan& getEditablePlan()       { return editablePlan;}
-    void setStateEditPlan(bool state)   { beginEditPlan = state; }
+    ActivePlanManager* actPlanMngrPtr()       { return activePlanManager.data(); }
+    FlightPlan& getActivePlan()               { return activePlan;       }
+    FlightPlan& getEditablePlan()             { return editablePlan;     }
+    FlightPlanRouteInfo& getEditablePlanInfo(){ return editablePlanInfo; }
+    Waypoint&   getEditablePoint()            { return editablePoint;    }
+    void setStateEditPlan(bool state)         { beginEditPlan = state;   }
     bool pointInActivePlan(int idPoint);
 
     // Активация режима Прямо На для точки в активном плане

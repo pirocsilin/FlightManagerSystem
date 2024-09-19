@@ -13,7 +13,6 @@
 #include <QTcpSocket>
 #include "common/labsflightplan.h"
 #include "common/structsflightplan.h"
-#include "math/math_fms.h"
 
 using namespace fp;
 

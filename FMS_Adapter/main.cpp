@@ -29,63 +29,41 @@ void testAnyMethods(Controller &controller)
     QObject::connect(&controller, &Controller::signalGetPlanRouteInfo, [](const FlightPlanRouteInfoPair &info){printFlightPlanRouteInfo(info);});
     QObject::connect(&controller, &Controller::signalActivatePlan, [](const CommandStatus &info){printCommandStatus(info);});
     QObject::connect(&controller, &Controller::signalGetNearestWaypoints, [](const WaypointVectorPair &info){printWaypointVectorInfo(info);});
-    QObject::connect(&controller, &Controller::signalSavePlan,   [](const CommandStatus &info){printCommandStatus(info);});
     QObject::connect(&controller, &Controller::signalDeletePlan, [](const CommandStatus &info){printCommandStatus(info);});
     QObject::connect(&controller, &Controller::signalInvertPlan, [](const CommandStatus &info){printCommandStatus(info);});
     QObject::connect(&controller, &Controller::signalGetWaypointByIcao, [](const WaypointVectorPair &info){printWaypointVectorInfo(info);});
     QObject::connect(&controller, &Controller::signalGetWaypointById, [](const WaypointPair &info){printWaypointInfo(info);});
-    QObject::connect(&controller, &Controller::signalSaveWaypoint, [](const CommandStatus &info){printCommandStatus(info);});
+    //
+    QObject::connect(&controller, &Controller::signalStartEditPoint, [](const WaypointPair &info){printEditWaypointInfo(info);});
+    QObject::connect(&controller, &Controller::signalStopEditPoint,  [](const WaypointPair &info){printEditWaypointInfo(info);});
+    QObject::connect(&controller, &Controller::signalGetEditableWaypoint,  [](const WaypointPair &info){printEditWaypointInfo(info);});
+    //
     QObject::connect(&controller, &Controller::signalDeleteWaypointFromBase, [](const CommandStatus &info){printCommandStatus(info);});
     //
-    QObject::connect(&controller, &Controller::signalStartEditPlan, [&](const CommandStatus &info){printPlanInfo(std::make_pair(info, controller.adapterPrt()->getEditablePlan()));});
-    QObject::connect(&controller, &Controller::signalAddWaypoint, [&](const CommandStatus &info){printPlanInfo(std::make_pair  (info, controller.adapterPrt()->getEditablePlan()));});
-    QObject::connect(&controller, &Controller::signalDeleteWaypont, [&](const CommandStatus &info){printPlanInfo(std::make_pair(info, controller.adapterPrt()->getEditablePlan()));});
+    QObject::connect(&controller, &Controller::signalStartEditPlan, [&](const FlightPlanRouteInfoPair &info){printFlightPlanRouteInfo(info);});
+    QObject::connect(&controller, &Controller::signalAddWaypoint,   [&](const FlightPlanRouteInfoPair &info){printFlightPlanRouteInfo(info);});
+    QObject::connect(&controller, &Controller::signalDeleteWaypont, [&](const FlightPlanRouteInfoPair &info){printFlightPlanRouteInfo(info);});
     //
     QObject::connect(controller.adapterPrt()->actPlanMngrPtr(), &ActivePlanManager::signalGetActivePlanInfo, [](const ActivePlanInfoPair &info){printActivePlanInfo(info);});
     QObject::connect(controller.adapterPrt()->actPlanMngrPtr(), &ActivePlanManager::signalSelectNextPoint, [&](){controller.getActivePlanInfo();});
 
-    //controller.saveWaypoint({-1,"ACDC","MU",(WaypointType)0,0,0,0,0,0});
-
-    controller.setDeviceFlightData({55.5, 48.4, 12, 15});
+    controller.startEditPoint(25);
     getchar();
-    controller.activatePlan(4);
+    controller.setLatitudeForWaypoint(55.55);
     getchar();
-    controller.getActivePlanInfo();
+    controller.setIcaoForWaypoint("DDT");
     getchar();
-    controller.selectNextPoint(true);
+    controller.setLatitudeForWaypoint(57.12);
+    controller.setLongitudeForWaypoint(60.12);
+    controller.setRegionForWaypoint("tagil");
     getchar();
-    controller.selectNextPoint(true);
+    controller.setIcaoForWaypoint("FT");
     getchar();
-    controller.selectNextPoint(true);
+    controller.setTypeForWaypoint(WaypointType::VOR);
+    controller.setFrequencyForWaypoint(152.32);
+    controller.setAltitudeForWaypoint(1080);
     getchar();
-    controller.deleteWaypoint(30);
-    getchar();
-    controller.getActivePlanInfo();
-    getchar();
-    controller.selectNextPoint(true);
-    getchar();
-    controller.selectNextPoint(true);
-    getchar();
-    controller.selectNextPoint(true);
-    getchar();
-    controller.selectNextPoint(true);
-    getchar();
-    controller.selectNextPoint(true);
-    getchar();
-    controller.selectNextPoint(true);
-    getchar();
-    controller.deleteWaypoint(26);
-    getchar();
-    controller.getActivePlanInfo();
-    getchar();
-    controller.deleteWaypoint(27);
-    controller.deleteWaypoint(28);
-    getchar();
-    controller.getActivePlanInfo();
-    getchar();
-    controller.deleteWaypoint(29);
-    getchar();
-    controller.getActivePlanInfo();
+    controller.stopEditPoint(true);
     getchar();
 
 //    int point{};
@@ -104,7 +82,6 @@ void testAnyMethods(Controller &controller)
 void testSelectNextPoint()
 {
     ActivePlanManager mngr;
-    const double EARTH_RADIUS {6371000.0};
 
     Controller controller;
     QThread::msleep(20);

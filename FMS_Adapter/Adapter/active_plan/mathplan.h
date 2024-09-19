@@ -22,8 +22,6 @@ public:
 
 private:
 
-    const double EARTH_RADIUS {6371000.0};      //!< условный радиус земной сферы, м
-
     NavDataFms              navDataFms;         //!< возвращаемые расчитанные пилотажные данные
     ActivePlanGuide         fpg;                //!< параметры для расчета активного плана
     ActivePlanInfo          activePlanInfo;     //!< информация об активном плане

@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#define INVALID_ID -1           //!< признак пустого объекта
+
 namespace fp {
 
 enum class CommandStatus
@@ -61,7 +63,7 @@ struct FlightPlan
 
 struct WaypointRouteInfo
 {
-    uint32_t     id;        //!< id ППМ                         // ***** ADD **** //
+    uint32_t     id;        //!< id ППМ
     std::string  icao;      //!< ИКАО ППМ (max 4 символа)
     uint16_t     bearing;   //!< курс на ППМ, градус
     uint32_t     distance;  //!< дальность до ППМ, м
@@ -78,7 +80,7 @@ struct FlightPlanRouteInfo
 
 struct ActivePlanInfo
 {
-    uint32_t                       id;             //!< id плана
+    int32_t                        id;             //!< id плана
     std::string                    name;           //!< наименование плана
     uint32_t                       remainFlightDistance; //!< оставшееся расстояние полета по маршруту, м
     uint32_t                       remainFlightTime;     //!< оставшееся время полета по маршруту, c
@@ -105,14 +107,22 @@ struct NavDataFms
 {
     std::string activeWaypointIcao;     //!< наименование (код ИКАО) активной точки
     std::string nextWaypointIcao;       //!< наименование (код ИКАО) следующей точки
-    uint32_t activeWaypointDistance;    //!< дальность до активной точки, м*10              // distanceToCurPoint       **
-    uint32_t activeWaypointRemainTime;  //!< оставшееся время до активной точки, с          // remainTimeToCurPoint     **
-    uint32_t nextWaypointRemainTime;    //!< оставшееся время до следующей точки, с         // remainTimeToNextPoint    **
-    uint32_t activeWaypointCourse;      //!< курс на активную точку, градусы                // azimuthToCurPoint        **
-    uint32_t lateralDeviationPathLine;  //!< боковое отклонение от линии заданного пути, м  // trackDeviationZ          **
+    uint32_t activeWaypointDistance;    //!< дальность до активной точки, м*10
+    uint32_t activeWaypointRemainTime;  //!< оставшееся время до активной точки, с
+    uint32_t nextWaypointRemainTime;    //!< оставшееся время до следующей точки, с
+    uint32_t activeWaypointCourse;      //!< курс на активную точку, градусы
+    uint32_t lateralDeviationPathLine;  //!< боковое отклонение от линии заданного пути, м
     uint32_t activeRadioBeaconDistance; //!< дальность до активного радиомаяка, м*10
     ActivePlanInfo activePlan;          //!< данные активного плана
 };
+
+typedef std::pair<fp::CommandStatus, fp::ActivePlanInfo>              ActivePlanInfoPair;
+typedef std::pair<fp::CommandStatus, std::vector<fp::FlightPlanInfo>> FlightPlanInfoPair;
+typedef std::pair<fp::CommandStatus, fp::FlightPlan>                  FlightPlanPair;
+typedef std::pair<fp::CommandStatus, fp::FlightPlanRouteInfo>         FlightPlanRouteInfoPair;
+typedef std::pair<fp::CommandStatus, std::vector<fp::Waypoint>>       WaypointVectorPair;
+typedef std::pair<fp::CommandStatus, fp::Waypoint>                    WaypointPair;
+typedef std::pair<fp::CommandStatus, int32_t>                         IdPair;
 
 }
 

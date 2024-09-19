@@ -1,6 +1,7 @@
 
 #include "controller.h"
 
+
 Controller::Controller(QObject *parent) :
     outStream(&outData, QIODevice::WriteOnly),
     streamMfi2(&dataMfi2, QIODevice::WriteOnly),
@@ -108,14 +109,14 @@ bool Controller::decodeRequest()
 {
     inputStream >> hdr;
 
-    qDebug() << printCommandInfo(hdr.uniqueCmd, hdr.id, prevUniqueCmd).toUtf8().data();                                                //
+    qDebug() << printCommandInfo(hdr.uniqueCmd, hdr.id, prevUniqueCmd).toUtf8().data();
 
-    if(hdr.uniqueCmd <= prevUniqueCmd)          // Выход, если команда получена повторно
+    if(hdr.uniqueCmd <= prevUniqueCmd)                          // Выход, если команда получена повторно
         return false;
 
-    prevUniqueCmd = hdr.uniqueCmd;              // Сохраняем номер последней команды
-    HeaderData::Name dst = hdr.name;            // Кто прислал запрос
-    hdr.name = HeaderData::Name::CONTROLLER_ANS;// Формируем заголовок ответа
+    prevUniqueCmd        = hdr.uniqueCmd;                       // Сохраняем номер последней команды
+    HeaderData::Name dst = hdr.name;                            // Кто прислал запрос
+    hdr.name             = HeaderData::Name::CONTROLLER_ANS;    // Формируем заголовок ответа
 
     outStream << qint16(0);
 

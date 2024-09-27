@@ -43,11 +43,11 @@ bool DBconnector::executeQuery()
     return true;
 }
 
-bool DBconnector::addCommandForFMS_2(QByteArray *sqlCommand)
+bool DBconnector::addCommandForFMS_2(QByteArray &data)
 {
     query = "INSERT INTO reg_data(command) VALUES (:data)";
     DBquery.prepare(query);
-    DBquery.bindValue(":data", *sqlCommand);
+    DBquery.bindValue(":data", data);
 
     return DBquery.exec();
 }
@@ -79,6 +79,68 @@ void DBconnector::writeCommandToFMS_2(QTcpSocket &sokcetFms2)
                 qDebug() << "ERROR: set SQLITE_SEQUENCE for reg_table";
         }
     }
+}
+
+void DBconnector::getRecordQuery(QByteArray &data)
+{
+    query = "SELECT command FROM reg_data ORDER BY id ASC LIMIT 1;";
+    if(!DBquery.exec(query)){
+        stateLastReguest = CommandStatus::ERROR_DATABASE;
+        return;
+    }
+
+    if(DBquery.next())
+    {
+        data = DBquery.value(0).toByteArray();
+        stateLastReguest = CommandStatus::OK;
+    }
+    else
+        stateLastReguest = CommandStatus::INVALID;
+}
+
+bool DBconnector::delRecordQuery()
+{
+    query = QString("DELETE FROM reg_data WHERE id= "
+                    "(SELECT id FROM reg_data ORDER BY id ASC LIMIT 1);");
+
+    return DBquery.exec(query);
+}
+
+bool DBconnector::getIdRecordQuery(int &id)
+{
+    query = "SELECT id FROM reg_data ORDER BY id ASC LIMIT 1;";
+    if(!DBquery.exec(query))
+        return false;
+
+    if(DBquery.next())
+    {
+        id = DBquery.value(0).toInt();
+        return true;
+    }
+    else
+        return false;
+}
+
+bool DBconnector::getLastCmdIdFromFms2(int &id)
+{
+    query = "SELECT id FROM last_cmd_from_mfi2;";
+    if(!DBquery.exec(query))
+        return false;
+
+    if(DBquery.next())
+    {
+        id = DBquery.value(0).toInt();
+        return true;
+    }
+    else
+        return false;
+}
+
+bool DBconnector::setLastCmdIdFromFms2(int id)
+{
+    query = QString("UPDATE last_cmd_from_mfi2 SET id=%1;").arg(id);
+
+    return DBquery.exec(query);
 }
 
 bool DBconnector::executeQuery(QString &request)

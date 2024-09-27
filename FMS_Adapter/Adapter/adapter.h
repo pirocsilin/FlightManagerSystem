@@ -26,6 +26,7 @@ class AdapterFMS : public QObject
 private:
 
     uint32_t uniqueCmd {10};                                //!< уникальный id запрса к FMS
+    // i'm here
 
     QSharedPointer<Connector> connector;                    //!< коммуникация с FMS
     QThread connectorThread;
@@ -33,8 +34,8 @@ private:
     QSharedPointer<ActivePlanManager> activePlanManager;    //!< манагер рассчета параметров активного плана
     QThread activePlanManagerThread;
 
-    bool beginEditPlan {false};                             //!< признак редактирования плана полета
-    bool beginEditPoint{false};                             //!< признак редактирования ППМ
+    bool beginEditPlan   {false};                           //!< признак редактирования плана полета
+    bool beginEditPoint  {false};                           //!< признак редактирования ППМ
 
     Waypoint  editablePoint   {};                           //!< редактируемая точка
     FlightPlan editablePlan   {};                           //!< редактируемый план полета
@@ -115,12 +116,15 @@ public:
     // //
 
     ActivePlanManager* actPlanMngrPtr()       { return activePlanManager.data(); }
+    Connector* connectorPtr()                 { return connector.data(); }
     FlightPlan& getActivePlan()               { return activePlan;       }
     FlightPlan& getEditablePlan()             { return editablePlan;     }
     FlightPlanRouteInfo& getEditablePlanInfo(){ return editablePlanInfo; }
     Waypoint&   getEditablePoint()            { return editablePoint;    }
     void setStateEditPlan(bool state)         { beginEditPlan = state;   }
     bool pointInActivePlan(int idPoint);
+    //
+    static void setUpdatingDataBaseStatus(bool);
 
     // Активация режима Прямо На для точки в активном плане
     // void activateDirectToMode(uint32_t id);

@@ -3,6 +3,7 @@
 
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QSqlQuery>
 #include <QDate>
 #include <QTimer>
 #include <QObject>
@@ -26,6 +27,9 @@ private:
     int destPort        {6666};
 
     int prevUniqueCmd   {};     //!< предыдущая уникальная команда
+    int prevCmdFromMfi2 {};     //!< пердыдущая команда от МФИ-2
+    bool stateUpdatingDataBaseToMfi2     {false};//!< признак обновления базы данных на МФИ-2
+
     DBconnector db;             //!< объект для работы с БД
 
     qint16 nextBlockSize{};     //!< размер данных для считывания из сокета
@@ -50,6 +54,10 @@ private:
     bool decodeRequest();
     void clearBuffers ();
     void sendData     ();
+    void sendData     (QTcpSocket &, QByteArray&);
+    //
+    void sendMsgAboutUpdate(cmdID state);
+    void trySendRecordQuery();
 
     QString printCommandInfo(int uniqueCmd, int idCmd, int prevUniqueCmd);
 

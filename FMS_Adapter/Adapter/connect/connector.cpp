@@ -1,4 +1,5 @@
 #include <connect/connector.h>
+#include <common/labsflightplan.h>
 
 Connector::~Connector()
 {
@@ -11,7 +12,7 @@ void Connector::initConnection()
     connectSocket = QSharedPointer<QTcpSocket>(new QTcpSocket);
     connectTimer = QSharedPointer<QTimer>(new QTimer);
 
-    connect(connectTimer.data(), &QTimer::timeout, this, &Connector::slotTryConnectToController);
+    connect(connectTimer.data(),  &QTimer::timeout, this, &Connector::slotTryConnectToController);
     connect(connectSocket.data(), &QTcpSocket::disconnected, this, &Connector::slotTryConnectToController);
     connect(connectSocket.data(), &QTcpSocket::connected, this, &Connector::slotConnectedToController);
     connect(connectSocket.data(), SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(slotErrorSocket(QAbstractSocket::SocketError)));
@@ -39,9 +40,25 @@ void Connector::slotReadyRead()
 
         inputData = connectSocket->read(nextBlockSize);
 
-        nextBlockSize = 0;
-
+#ifdef SYNCH_DATA_BASE
+        fp::HeaderData hdr;
+        fp::getHdrFromResponse(inputData, hdr);
+        if(hdr.id == fp::cmdID::START_UPDATE_DATABASE)
+        {
+            updStateDataBaseMfi2 = true;
+            emit signalUpdateDataBase(true);
+        }
+        else
+        if(hdr.id == fp::cmdID::STOP_UPDATE_DATABASE)
+        {
+            updStateDataBaseMfi2 = false;
+            emit signalUpdateDataBase(false);
+        }
+        else
+  #endif
         emit signalReadyRead();
+
+        nextBlockSize = 0;
     }
 }
 
@@ -73,6 +90,13 @@ void Connector::sendDataAndAwaite(QByteArray *data)
 
 void Connector::slotTryConnectToController()
 {
+#ifdef SYNCH_DATA_BASE
+    if(updStateDataBaseMfi2 == true)
+    {
+        updStateDataBaseMfi2 = false;
+        emit signalUpdateDataBase(false);
+    }
+#endif
     if(!connectTimer->isActive())
     {
         connectTimer->start();

@@ -477,8 +477,9 @@ double calculateBearing(double lat1, double lon1, double lat2, double lon2)
     return bearing * 180.0 / M_PI;
 }
 
-void printNavDataFms(NavDataFms &data)
+void printNavDataFms(const NavDataFms &data)
 {
+    qDebug() << "==================================";
     qDebug() << QString("акт. точка:          %1\n"
                         "след точка:          %2\n"
                         "дальн. до акт.:      %3\n"
@@ -498,6 +499,7 @@ void printNavDataFms(NavDataFms &data)
 
     auto plan = std::make_pair(CommandStatus::OK, data.activePlan);
     printActivePlanInfo(plan);
+    qDebug() << "==================================";
 }
 
 bool operator ==(const Waypoint &one, const Waypoint &two)

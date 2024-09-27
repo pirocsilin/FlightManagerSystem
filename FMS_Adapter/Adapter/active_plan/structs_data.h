@@ -36,10 +36,6 @@ struct ActivePlanGuide
 
     void clearData()
     {
-        name.clear();
-        points.clear();
-        indexCurrentPoint       = 0;
-        //
         azimuthToNextPPM        = 0.0f;
         distanceToNextPPM       = 0.0f;
         distanceToNextNextPPM   = 0.0f;

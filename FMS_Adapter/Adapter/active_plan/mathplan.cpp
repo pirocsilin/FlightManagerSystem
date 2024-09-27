@@ -78,6 +78,7 @@ void ActivePlanManager::resetRoute()
     activePlanInfo     = {};
     navDataFms         = {};
     fpg.clearData();
+    fpg.reset();
 }
 
 void ActivePlanManager::getActivePlanInfo()
@@ -151,12 +152,11 @@ void ActivePlanManager::setDeviceFlightData(const fp::DeviceFlightData &data)
 
         // проверка переключения на следующую точку маршрута
         //
-        qDebug() << fpg.distanceToNextPPM << ":" << fpg.switchPointDistance;
         if(fpg.distanceToNextPPM <= fpg.switchPointDistance)
             selectNextPoint(true);
-    }
 
-    emit signalNavDataFms(navDataFms);
+        emit signalNavDataFms(navDataFms);
+    }
 }
 
 void ActivePlanManager::selectNextPoint(bool direction)
@@ -277,10 +277,21 @@ bool ActivePlanManager::calcActivePlan(float latitudeCurPosition, float longitud
         // азимут между азимутом со след ПМ на предыдущий и азимутом со след ПМ на текущее положение
         float delta_az_back = bound_pi(az_lzp_back - az_true_back, M_PI);
         fpg.distanceToNextPPM   *= EARTH_RADIUS;
-        fpg.trackDeviationZ = fpg.distanceToNextPPM * sin(delta_az_back);
+        fpg.trackDeviationZ = fpg.distanceToNextPPM * abs(sin(delta_az_back));
+
+        qDebug() << QString("trackDeviationZ = %1 * sin(%2)")
+                    .arg(fpg.distanceToNextPPM)
+                    .arg(abs(sin(delta_az_back)));
     }
 
-    qDebug() << __PRETTY_FUNCTION__ << latitudeCurPosition * 180 /M_PI << longitudeCurPosition * 180 /M_PI << curPoint.latitude * 180 /M_PI << curPoint.longitude * 180 /M_PI;
+    qDebug() << QString("[%1] lat: %2, log: %3 -> target: %4, %5 | dist: %6 / %7m")
+                .arg(fpg.indexCurrentPoint)
+                .arg(latitudeCurPosition * 180 /M_PI)
+                .arg(longitudeCurPosition * 180 /M_PI)
+                .arg(curPoint.latitude * 180 /M_PI)
+                .arg(curPoint.longitude * 180 /M_PI)
+                .arg(fpg.distanceToNextPPM)
+                .arg(fpg.switchPointDistance);
 
     bool nextPointExists  = fpg.indexCurrentPoint < fpg.points.size()-1;
     //

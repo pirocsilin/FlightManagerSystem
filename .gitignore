@@ -1,5 +1,7 @@
 *.odg
 *.user
+*.odt
+/uml*
 /garmin
 /math
 /build*

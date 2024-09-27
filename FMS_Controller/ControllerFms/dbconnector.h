@@ -16,6 +16,8 @@
 
 using namespace fp;
 
+typedef std::pair<int, QByteArray> CommandMfi2;
+
 class DBconnector : public QSqlDatabase
 {
 
@@ -30,6 +32,9 @@ private:
     QSqlQuery   DBquery;
     QSqlRecord  rec;
 
+    CommandMfi2 lastCmdToMfi2   {INVALID_ID, QByteArray()};    //!< последняя команда отправленная к MFI-2
+    CommandStatus stateLastReguest  {CommandStatus::INVALID};  //!< статус выполнения последнего запроса в БД
+
     std::vector<Waypoint> recentWaypoints;      //!< Последние точки запрошенные из базы
 
     void initConnection();
@@ -39,7 +44,6 @@ private:
     std::string getNameForPlan(int id);         //!< сформировать имя для плана полета
     bool getPlanfromDB(FlightPlan &plan);       //!< получить план полета из базы данных
     //
-    bool addCommandForFMS_2     (QByteArray*);
     void writeCommandToFMS_2    (QTcpSocket&);
     bool insertWaypointIntoPlan (FlightPlan&);
     bool recordWaypointIntoBase (Waypoint&, bool=false);
@@ -47,9 +51,17 @@ private:
 public:
     DBconnector();
 
+    enum StateRecordQuery : uint8_t
+    {
+        SENT = 1,
+        DONE = 2
+    };
+
     QDataStream *inputData;
     QDataStream *outData;
     HeaderData  *hdr;
+
+    bool statusLastDeleteCommand{true};
 
     void getPlan                ();
     void savePlan               ();
@@ -63,6 +75,16 @@ public:
     //
     void getNearestWaypoints    ();
     void invertPlan             ();
+    //
+    bool addCommandForFMS_2     (QByteArray &data);
+    bool getIdRecordQuery       (int &id);
+    bool getLastCmdIdFromFms2   (int &id);
+    bool setLastCmdIdFromFms2   (int id);
+    void getRecordQuery         (QByteArray &data);
+    bool delRecordQuery         ();
+
+    //
+    CommandStatus getRequestStatus(){ return stateLastReguest; }
 };
 
 #endif // DBCONNECTOR_H

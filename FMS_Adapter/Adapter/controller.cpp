@@ -6,20 +6,22 @@
         return;                                                                            \
     }
 
-Controller::Controller()
+ControllerFlightPlan::ControllerFlightPlan()
 {
-    connect(this, &Controller::started, this, &Controller::init);
+    connect(this, &ControllerFlightPlan::started, this, &ControllerFlightPlan::init);
     connect(this, &QThread::finished, this, &QThread::deleteLater);
     this->moveToThread(this);
     this->start();
 }
 
-void Controller::init()
+void ControllerFlightPlan::init()
 {
     selfThread = QThread::currentThreadId();
+    connect(adapter.connectorPtr(), &Connector::signalUpdateDataBase,
+            this, &ControllerFlightPlan::setStatusUpdateDataBase);
 }
 
-void Controller::getPlan(uint32_t id)
+void ControllerFlightPlan::getPlan(uint32_t id)
 {
     ASYNC_INVOKE(getPlan, Q_ARG(uint32_t, id))
 
@@ -28,7 +30,7 @@ void Controller::getPlan(uint32_t id)
     emit signalGetPlan(result);
 }
 
-void Controller::deletePlan(uint32_t id)
+void ControllerFlightPlan::deletePlan(uint32_t id)
 {
     ASYNC_INVOKE(deletePlan, Q_ARG(uint32_t, id))
 
@@ -42,7 +44,7 @@ void Controller::deletePlan(uint32_t id)
     }
 }
 
-void Controller::invertPlan(uint32_t id)
+void ControllerFlightPlan::invertPlan(uint32_t id)
 {
     ASYNC_INVOKE(invertPlan, Q_ARG(uint32_t, id))
 
@@ -56,7 +58,7 @@ void Controller::invertPlan(uint32_t id)
     }
 }
 
-void Controller::getWaypointByIcao(std::string icao)
+void ControllerFlightPlan::getWaypointByIcao(std::string icao)
 {
     ASYNC_INVOKE(getWaypointByIcao, Q_ARG(std::string, icao))
 
@@ -65,7 +67,7 @@ void Controller::getWaypointByIcao(std::string icao)
     emit signalGetWaypointByIcao(result);
 }
 
-void Controller::getWaypointById(uint32_t id)
+void ControllerFlightPlan::getWaypointById(uint32_t id)
 {
     ASYNC_INVOKE(getWaypointById, Q_ARG(uint32_t, id))
 
@@ -74,7 +76,7 @@ void Controller::getWaypointById(uint32_t id)
     emit signalGetWaypointById(result);
 }
 
-void Controller::deleteWaypoint(uint32_t id)
+void ControllerFlightPlan::deleteWaypoint(uint32_t id)
 {
     ASYNC_INVOKE(deleteWaypoint, Q_ARG(uint32_t, id))
 
@@ -88,7 +90,7 @@ void Controller::deleteWaypoint(uint32_t id)
     }
 }
 
-void Controller::startEditPoint(int32_t id)
+void ControllerFlightPlan::startEditPoint(int32_t id)
 {
     ASYNC_INVOKE(startEditPoint, Q_ARG(int32_t, id))
 
@@ -120,7 +122,7 @@ void Controller::startEditPoint(int32_t id)
     emit signalStartEditPoint(result);
 }
 
-void Controller::stopEditPoint(bool save)
+void ControllerFlightPlan::stopEditPoint(bool save)
 {
     ASYNC_INVOKE(stopEditPoint, Q_ARG(bool, save))
 
@@ -141,7 +143,7 @@ void Controller::stopEditPoint(bool save)
         emit signalStopEditPoint(std::make_pair(CommandStatus::INVALID, Waypoint()));
 }
 
-void Controller::setLatitudeForWaypoint(float latitude)
+void ControllerFlightPlan::setLatitudeForWaypoint(float latitude)
 {
     ASYNC_INVOKE(setLatitudeForWaypoint, Q_ARG(float, latitude))
 
@@ -150,7 +152,7 @@ void Controller::setLatitudeForWaypoint(float latitude)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setLongitudeForWaypoint(float longitude)
+void ControllerFlightPlan::setLongitudeForWaypoint(float longitude)
 {
     ASYNC_INVOKE(setLongitudeForWaypoint, Q_ARG(float, longitude))
 
@@ -159,7 +161,7 @@ void Controller::setLongitudeForWaypoint(float longitude)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setIcaoForWaypoint(std::string icao)
+void ControllerFlightPlan::setIcaoForWaypoint(std::string icao)
 {
     ASYNC_INVOKE(setIcaoForWaypoint, Q_ARG(std::string, icao))
 
@@ -178,7 +180,7 @@ void Controller::setIcaoForWaypoint(std::string icao)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setRegionForWaypoint(std::string region)
+void ControllerFlightPlan::setRegionForWaypoint(std::string region)
 {
     ASYNC_INVOKE(setRegionForWaypoint, Q_ARG(std::string, region))
 
@@ -187,7 +189,7 @@ void Controller::setRegionForWaypoint(std::string region)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setUtcForWaypoint(int32_t utc)
+void ControllerFlightPlan::setUtcForWaypoint(int32_t utc)
 {
     ASYNC_INVOKE(setUtcForWaypoint, Q_ARG(int32_t, utc))
 
@@ -196,7 +198,7 @@ void Controller::setUtcForWaypoint(int32_t utc)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setTypeForWaypoint(WaypointType type)
+void ControllerFlightPlan::setTypeForWaypoint(WaypointType type)
 {
     ASYNC_INVOKE(setTypeForWaypoint, Q_ARG(WaypointType, type))
 
@@ -205,7 +207,7 @@ void Controller::setTypeForWaypoint(WaypointType type)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setFrequencyForWaypoint(double frequency)
+void ControllerFlightPlan::setFrequencyForWaypoint(double frequency)
 {
     ASYNC_INVOKE(setFrequencyForWaypoint, Q_ARG(double, frequency))
 
@@ -214,7 +216,7 @@ void Controller::setFrequencyForWaypoint(double frequency)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setAltitudeForWaypoint(int32_t altitude)
+void ControllerFlightPlan::setAltitudeForWaypoint(int32_t altitude)
 {
     ASYNC_INVOKE(setAltitudeForWaypoint, Q_ARG(int32_t, altitude))
 
@@ -223,7 +225,7 @@ void Controller::setAltitudeForWaypoint(int32_t altitude)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setSchemeForWaypoint(std::string scheme)
+void ControllerFlightPlan::setSchemeForWaypoint(std::string scheme)
 {
     ASYNC_INVOKE(setSchemeForWaypoint, Q_ARG(std::string, scheme))
 
@@ -232,7 +234,7 @@ void Controller::setSchemeForWaypoint(std::string scheme)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::setVppForWaypoint(std::string vpp)
+void ControllerFlightPlan::setVppForWaypoint(std::string vpp)
 {
     ASYNC_INVOKE(setVppForWaypoint, Q_ARG(std::string, vpp))
 
@@ -241,7 +243,7 @@ void Controller::setVppForWaypoint(std::string vpp)
     emit signalGetEditableWaypoint(std::make_pair(CommandStatus::OK, adapter.getEditablePoint()));
 }
 
-void Controller::getCatalogInfoOfPlans()
+void ControllerFlightPlan::getCatalogInfoOfPlans()
 {
     ASYNC_INVOKE(getCatalogInfoOfPlans)
 
@@ -250,7 +252,7 @@ void Controller::getCatalogInfoOfPlans()
     emit signalGetCatalogInfoOfPLans(planInfo);
 }
 
-void Controller::getPlanRouteInfo(uint32_t id)
+void ControllerFlightPlan::getPlanRouteInfo(uint32_t id)
 {
     ASYNC_INVOKE(getPlanRouteInfo, Q_ARG(uint32_t, id))
 
@@ -259,7 +261,7 @@ void Controller::getPlanRouteInfo(uint32_t id)
     emit signalGetPlanRouteInfo(flightPlanRouteInfo);
 }
 
-void Controller::activatePlan(uint32_t id)
+void ControllerFlightPlan::activatePlan(uint32_t id)
 {
     ASYNC_INVOKE(activatePlan, Q_ARG(uint32_t, id))
 
@@ -268,7 +270,7 @@ void Controller::activatePlan(uint32_t id)
     emit signalActivatePlan(status);
 }
 
-void Controller::startEditPlan(int32_t id)
+void ControllerFlightPlan::startEditPlan(int32_t id)
 {
     ASYNC_INVOKE(startEditPlan, Q_ARG(int32_t, id))
 
@@ -304,7 +306,7 @@ void Controller::startEditPlan(int32_t id)
     emit signalStartEditPlan(result);
 }
 
-void Controller::stopEditPlan(bool save, bool activate)
+void ControllerFlightPlan::stopEditPlan(bool save, bool activate)
 {
     ASYNC_INVOKE(stopEditPlan, Q_ARG(bool, save), Q_ARG(bool, activate))
 
@@ -332,7 +334,7 @@ void Controller::stopEditPlan(bool save, bool activate)
     }
 }
 
-void Controller::getNearestWaypoints(float dist)
+void ControllerFlightPlan::getNearestWaypoints(float dist)
 {
     ASYNC_INVOKE(getNearestWaypoints, Q_ARG(float, dist))
 
@@ -341,7 +343,7 @@ void Controller::getNearestWaypoints(float dist)
     emit signalGetNearestWaypoints(result);
 }
 
-void Controller::addWaypointToEditPlan(uint32_t pos, uint32_t id)
+void ControllerFlightPlan::addWaypointToEditPlan(uint32_t pos, uint32_t id)
 {
     ASYNC_INVOKE(addWaypointToEditPlan, Q_ARG(uint32_t, pos), Q_ARG(uint32_t, id))
 
@@ -359,7 +361,7 @@ void Controller::addWaypointToEditPlan(uint32_t pos, uint32_t id)
         emit signalAddWaypoint(std::make_pair(result.first, adapter.getEditablePlanInfo()));
 }
 
-void Controller::deleteWaypointFromEditPlan(uint32_t pos)
+void ControllerFlightPlan::deleteWaypointFromEditPlan(uint32_t pos)
 {
     ASYNC_INVOKE(deleteWaypointFromEditPlan, Q_ARG(uint32_t, pos))
 
@@ -371,17 +373,25 @@ void Controller::deleteWaypointFromEditPlan(uint32_t pos)
     emit signalDeleteWaypont(std::make_pair(status, adapter.getEditablePlanInfo()));
 }
 
-void Controller::getActivePlanInfo()
+void ControllerFlightPlan::getActivePlanInfo()
 {
     adapter.getActivePlanInfo();
 }
 
-void Controller::setDeviceFlightData(const DeviceFlightData &data)
+void ControllerFlightPlan::setDeviceFlightData(const DeviceFlightData &data)
 {
     adapter.setDeviceFlightData(data);
 }
 
-void Controller::selectNextPoint(bool direction)
+void ControllerFlightPlan::setStatusUpdateDataBase(bool state)
+{
+    if(state)
+        emit signalStartUpdateDataBase();
+    else
+        emit signalStopUpdateDataBase();
+}
+
+void ControllerFlightPlan::selectNextPoint(bool direction)
 {
     adapter.selectNextPoint(direction);
 }

@@ -1,7 +1,7 @@
 
 #include "adapter.h"
 
-class Controller : public QThread
+class ControllerFlightPlan : public QThread
 {
     Q_OBJECT
 
@@ -10,7 +10,7 @@ class Controller : public QThread
 
 public:
 
-    Controller();
+    ControllerFlightPlan();
     AdapterFMS* adapterPrt() { return &adapter; }
 
 private slots:
@@ -29,12 +29,12 @@ public slots:
     void deleteWaypointFromEditPlan(uint32_t pos);          // удалить точку из редактируемого плана
     //
     void getNearestWaypoints(float dist);       // получить ближайшие 20 точек не дальше чем dist [m]
-    void getWaypointByIcao(std::string name);   // получить ППМ из базы по ICAO
-    void getWaypointById(uint32_t id);          // получить ППМ из базы по id
-    void deleteWaypoint(uint32_t id);           // удалить ППМ из базы
+    void getWaypointByIcao  (std::string name); // получить ППМ из базы по ICAO
+    void getWaypointById    (uint32_t id);      // получить ППМ из базы по id
+    void deleteWaypoint     (uint32_t id);      // удалить ППМ из базы
     //
-    void startEditPoint(int32_t id);            // старт редактирвания ППМ [if id = -1, создаем новую]
-    void stopEditPoint(bool save);              // стоп редактирования ППМ
+    void startEditPoint         (int32_t id);   // старт редактирвания ППМ [if id = -1, создаем новую]
+    void stopEditPoint          (bool save);    // стоп редактирования ППМ
     void setLatitudeForWaypoint (float);        // установить широту для ППМ
     void setLongitudeForWaypoint(float);        // установить долготу для ППМ
     void setIcaoForWaypoint     (std::string);  // установить ИКАО для ППМ
@@ -54,7 +54,8 @@ public slots:
     //
     void getActivePlanInfo();                                   // получить активный план сигналом
     void setDeviceFlightData(const fp::DeviceFlightData& data); //!< передача пилотажных данных и возврат сигналом параметров полета по активному плану
-
+    //
+    void setStatusUpdateDataBase(bool);
 signals:
 
     void signalGetPlan(FlightPlanPair);
@@ -76,4 +77,7 @@ signals:
     void signalGetCatalogInfoOfPLans(FlightPlanInfoPair);
     void signalGetPlanRouteInfo(FlightPlanRouteInfoPair);
     void signalActivatePlan(CommandStatus);
+    //
+    void signalStartUpdateDataBase();
+    void signalStopUpdateDataBase();
 };

@@ -28,7 +28,8 @@ private:
     QString remoteHost {"localhost"};
     int remotePort {5555};
 
-    qint16 nextBlockSize {0};
+    qint16 nextBlockSize      {0};
+    bool updStateDataBaseMfi2 {false};
 
     QSharedPointer<QTcpSocket> connectSocket;
     QSharedPointer<QTimer>     connectTimer;
@@ -47,6 +48,7 @@ public slots:
 signals:
 
     void signalReadyRead();
+    void signalUpdateDataBase(bool);
 
 };
 

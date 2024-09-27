@@ -85,23 +85,27 @@ void invertPlan             (FlightPlan &plan);
 void createNameForPlan      (FlightPlan &plan);
 
 // NavDataInfo
-void printNavDataFms(fp::NavDataFms& data);
+void printNavDataFms(const fp::NavDataFms& data);
 
-enum cmdID
+enum cmdID : uint32_t
 {
-    GET_PLAN,                   //!< получить информацию о плане по id
-    SAVE_PLAN,                  //!< сохранить план в базу
-    DELETE_PLAN,                //!< удалить план из базы
-    INVERT_PLAN,                //!< инвертировать план
-    GET_WAYPOINT_BY_ID,         //!< получить ППМ по id
-    GET_WAYPOINT_BY_ICAO,       //!< получить список точек по ИКАО
-    GET_NEAREST_WAYPOINTS,      //!< получить ближайшие точки
-    SAVE_WAYPOINT,              //!< сохранить ППМ в базу
-    DELETE_WAYPOINT,            //!< удалить ППМ из базы
-    GET_CATALOG_INFO_OF_PLANS,  //!< сведения о каждом плане полета в каталоге
-    GET_PLAN_ROUTE_INFO,        //!< данные о плане со списком точек
+    GET_PLAN                   = 0x00001,   //!< получить информацию о плане по id
+    SAVE_PLAN                  = 0x00002,   //!< сохранить план в базу
+    DELETE_PLAN                = 0x00004,   //!< удалить план из базы
+    INVERT_PLAN                = 0x00008,   //!< инвертировать план
+    GET_WAYPOINT_BY_ID         = 0x00010,   //!< получить ППМ по id
+    GET_WAYPOINT_BY_ICAO       = 0x00020,   //!< получить список точек по ИКАО
+    GET_NEAREST_WAYPOINTS      = 0x00040,   //!< получить ближайшие точки
+    SAVE_WAYPOINT              = 0x00080,   //!< сохранить ППМ в базу
+    DELETE_WAYPOINT            = 0x00100,   //!< удалить ППМ из базы
+    GET_CATALOG_INFO_OF_PLANS  = 0x00200,   //!< сведения о каждом плане полета в каталоге
+    GET_PLAN_ROUTE_INFO        = 0x00400,   //!< данные о плане со списком точек
     //
-    ERROR_DATABASE,             //!< FMS вернул ошибку БД
+    START_UPDATE_DATABASE      = 0x00800,   //!< начало обновления базы данных
+    STOP_UPDATE_DATABASE       = 0x01000,   //!< конец обновления базы данных
+    ERROR_DATABASE             = 0x02000,   //!< FMS вернул ошибку БД
+    //
+    MODIFICATION_CMD = SAVE_PLAN | DELETE_PLAN | INVERT_PLAN | SAVE_WAYPOINT | DELETE_WAYPOINT,
 };
 QDataStream &operator << (QDataStream &stream, const cmdID &data);
 QDataStream &operator >> (QDataStream &stream, cmdID &data);
@@ -112,7 +116,8 @@ struct HeaderData
     {
         ADAPTER_COMMAND = 0,
         CONTROLLER_ANS,
-        FMS_COMMAND,
+        MFI_COMMAND,
+        MFI_ANS
     };
 
     Name        name;
